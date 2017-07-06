@@ -9,10 +9,13 @@ int main(int argc, char **argv) {
 	uint16_t flags = 0;
 	struct nvm_ret ret;
 	struct nvm_addr addrs[8];
-	int i = 0;
+	int i = 0, d = 0;
 	void *buf;
 	void *meta;
 	ssize_t res;
+
+	if (argc > 1)
+		d = atoi(argv[1]);
 
 	if (!dev) {
 		perror("nvm_dev_open");
@@ -37,7 +40,7 @@ int main(int argc, char **argv) {
 	}
 
 	for (i = 0; i < 4096 * 8; i++)
-		((char *)buf)[i] = (i % 26 + 65);
+		((char *)buf)[i] = (i % 26 + 65 + d);
 
 	meta = nvm_buf_alloc(geo, geo->meta_nbytes * 8);
 	if (!meta) {
