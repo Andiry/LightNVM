@@ -49,6 +49,10 @@ int main(int argc, char **argv) {
 		goto out;
 	}
 
+	res = nvm_addr_erase(dev, addrs, 8, nvm_dev_get_pmode(dev), &ret);
+
+	printf("erase return %lu\n", res);
+
 	res = nvm_addr_write(dev, addrs, 8, buf, meta, flags, &ret);
 
 	printf("write return %lu\n", res);
