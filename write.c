@@ -10,12 +10,18 @@ int main(int argc, char **argv) {
 	struct nvm_ret ret;
 	struct nvm_addr addrs[8];
 	int i = 0, d = 0;
+	int erase = 0;
 	void *buf;
 	void *meta;
 	ssize_t res;
 
-	if (argc > 1)
-		d = atoi(argv[1]);
+	if (argc < 3) {
+		printf("usage: ./write $ERASE $OFFSET\n");
+		return 1;
+	}
+
+	erase = atoi(argv[1]);
+	d = atoi(argv[2]);
 
 	if (!dev) {
 		perror("nvm_dev_open");
@@ -49,9 +55,10 @@ int main(int argc, char **argv) {
 		goto out;
 	}
 
-	res = nvm_addr_erase(dev, addrs, 8, nvm_dev_get_pmode(dev), &ret);
-
-	printf("erase return %lu\n", res);
+	if (erase) {
+		res = nvm_addr_erase(dev, addrs, 1, nvm_dev_get_pmode(dev), &ret);
+		printf("erase return %lu\n", res);
+	}
 
 	res = nvm_addr_write(dev, addrs, 8, buf, meta, flags, &ret);
 
