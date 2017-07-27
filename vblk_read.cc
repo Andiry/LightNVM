@@ -18,8 +18,6 @@ enum BlkState {
 int main(int argc, char **argv) {
 	struct nvm_dev *dev = nvm_dev_open("/dev/nvme0n1");
 	const struct nvm_geo *geo;
-	uint16_t flags = 0;
-	struct nvm_ret ret;
 	struct nvm_addr addr;
 	std::vector<struct nvm_addr> units;
 	std::deque<std::pair<BlkState, struct nvm_vblk *>> blks;
@@ -30,7 +28,7 @@ int main(int argc, char **argv) {
 	ssize_t res;
 
 	if (argc < 3) {
-		printf("usage: ./write $CHANNEL $OFFSET\n");
+		printf("usage: ./read $CHANNEL $OFFSET\n");
 		return 1;
 	}
 
@@ -62,8 +60,6 @@ int main(int argc, char **argv) {
 
 	blk = blks[0].second;
 
-	nvm_vblk_erase(blk);
-
 	buf = nvm_buf_alloc(geo, 4096 * 8);
 	if (!buf) {
 		printf("nvm_buf_alloc failed\n");
@@ -73,9 +69,9 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 4096 * 8; i++)
 		((char *)buf)[i] = (i % 26 + 65 + d);
 
-	res = nvm_vblk_write(blk, buf, 4096 * 8);
+	res = nvm_vblk_read(blk, buf, 4096 * 8);
 
-	printf("write return %lu\n", res);
+	printf("read return %lu\n", res);
 
 	free(buf);
 out:

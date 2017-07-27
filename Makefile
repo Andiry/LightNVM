@@ -1,13 +1,13 @@
-CC = gcc
-CFLAGS = -O3 -Wall
+CC = g++
+CFLAGS = -O3 -Wall -std=c++11
 CLIB = -lrt -lpthread -llightnvm
 
-SRCS = $(wildcard *.c)
-BUILD = $(patsubst %.c, %, $(SRCS))
+SRCS = $(wildcard *.cc)
+BUILD = $(patsubst %.cc, %, $(SRCS))
 
 all: $(BUILD)
 
-.c:
+.cc:
 	$(CC) $(CFLAGS) $< -o $@ $(CLIB)
 
 clean:
