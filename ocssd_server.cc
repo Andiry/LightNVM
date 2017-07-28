@@ -7,10 +7,18 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <signal.h>
 
 #include "ocssd_server.h"
 
 #define BUFFER_SIZE 1024
+
+volatile sig_atomic_t stop;
+
+void interrupt(int signum) {
+	printf("%s\n", __func__);
+	stop = 1;
+}
 
 static int process_request(const char *buffer, int size)
 {
@@ -61,10 +69,18 @@ int main(int argc, char **argv)
 	ret = listen(sock, 5);
 	assert(ret != -1);
 
+	printf("Listening...\n");
+
 	struct sockaddr_in client;
 	socklen_t client_addrlen = sizeof(client);
 
-	while (1) {
+	struct sigaction action;
+	action.sa_handler = interrupt;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	sigaction(SIGINT, &action, NULL);
+
+	while (!stop) {
 		int connfd = accept(sock, (struct sockaddr*)&client, &client_addrlen);
 		if (connfd < 0) {
 			printf("errno %d\n", errno);
@@ -86,6 +102,7 @@ int main(int argc, char **argv)
 		}
 	}
 
+	printf("Closing...\n");
 	close(sock);
 
 	return 0;
