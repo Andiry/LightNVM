@@ -81,12 +81,15 @@ private:
 
 	std::string name_;
 	struct nvm_dev *dev_;
+	const struct nvm_geo *geo_;
 	std::vector<ocssd_channel *> shared_channels_;
 	std::vector<ocssd_channel *> exclusive_channels_;
 };
 
 int ocssd_unit::initialize_dev()
 {
+	geo_ = nvm_dev_get_geo(dev_);
+	printf("geo: %lu channels, %lu LUNs\n", geo_->nchannels, geo_->nluns);
 	return 0;
 }
 

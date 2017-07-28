@@ -13,6 +13,8 @@
 
 #define BUFFER_SIZE 1024
 
+ocssd_manager *manager;
+
 volatile sig_atomic_t stop;
 
 void interrupt(int signum) {
@@ -44,11 +46,27 @@ static int process_request(const char *buffer, int size)
 	return 0;
 }
 
+static int initialize_ocssd_manager()
+{
+	manager = new ocssd_manager();
+	if (!manager)
+		return -ENOMEM;
+
+	manager->add_ocssd("/dev/nvme0n1");
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc <= 2) {
 		printf("Usage: %s ip_address port_number\n", argv[0]);
 		return 1;
+	}
+
+	int ret = initialize_ocssd_manager();
+	if (ret) {
+		printf("OCSSD manager init failed\n");
+		return ret;
 	}
 
 	const char *ip = argv[1];
@@ -63,7 +81,7 @@ int main(int argc, char **argv)
 	int sock = socket(PF_INET, SOCK_STREAM, 0);
 	assert(sock >= 0);
 
-	int ret = bind(sock, (struct sockaddr *)&address, sizeof(address));
+	ret = bind(sock, (struct sockaddr *)&address, sizeof(address));
 	assert(ret != -1);
 
 	ret = listen(sock, 5);
@@ -93,6 +111,7 @@ int main(int argc, char **argv)
 			process_request(buffer, received);
 
 			virtual_ocssd vssd;
+			memset(&vssd, 0, sizeof(virtual_ocssd));
 			vssd.count++;
 
 			int sent = send(connfd, &vssd, sizeof(virtual_ocssd), 0);
@@ -103,6 +122,7 @@ int main(int argc, char **argv)
 	}
 
 	printf("Closing...\n");
+	delete manager;
 	close(sock);
 
 	return 0;
