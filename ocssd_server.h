@@ -45,7 +45,14 @@ public:
 		:channel_id_(channel_id),
 		num_luns_(num_luns),
 		num_blocks_(num_blocks),
-		used_count_(0) {}
+		used_count_(0)
+	{
+		lun_used_ = new int[num_luns_];
+	}
+
+	~ocssd_channel() {
+		delete[] lun_used_;
+	}
 
 private:
 
@@ -53,6 +60,7 @@ private:
 	size_t num_luns_;
 	size_t num_blocks_;
 	size_t used_count_;
+	int *lun_used_;
 };
 
 class ocssd_unit {
@@ -89,6 +97,7 @@ private:
 	std::string name_;
 	struct nvm_dev *dev_;
 	const struct nvm_geo *geo_;
+	std::mutex mutex_;
 	int channel_count_ = 0;
 	std::vector<ocssd_channel *> shared_channels_;
 	std::vector<ocssd_channel *> exclusive_channels_;
