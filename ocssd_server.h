@@ -21,6 +21,13 @@ static inline uint32_t deserialize_data(const char *&buffer) {
 
 #define REQUEST_MAGIC 0x6501
 
+/*
+ * Request serialize format:
+ * REQUEST_MAGIC	4 bytes
+ * NUM_CHANNELS		4 bytes
+ * SHARED		4 bytes
+ * NUMA_ID		4 bytes
+ */
 class ocssd_alloc_request {
 public:
 
@@ -186,8 +193,8 @@ public:
 	ocssd_channel(size_t channel_id, size_t num_luns, size_t num_blocks)
 		:channel_id_(channel_id),
 		num_luns_(num_luns),
-		num_blocks_(num_blocks),
-		used_count_(0)
+		num_used_(0),
+		num_blocks_(num_blocks)
 	{
 		lun_used_ = new int[num_luns_];
 	}
@@ -200,8 +207,8 @@ private:
 
 	size_t channel_id_;
 	size_t num_luns_;
+	size_t num_used_;
 	size_t num_blocks_;
-	size_t used_count_;
 	int *lun_used_;
 };
 
