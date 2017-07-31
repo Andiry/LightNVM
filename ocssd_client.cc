@@ -10,6 +10,8 @@
 
 #include "ocssd_server.h"
 
+#define BUFFER_SIZE 1024
+
 int main(int argc, char **argv)
 {
 	if (argc <= 2) {
@@ -34,13 +36,18 @@ int main(int argc, char **argv)
 	if (ret < 0) {
 		printf("errno %d\n", errno);
 	} else {
+		char buffer[BUFFER_SIZE];
+		memset(buffer, 0, BUFFER_SIZE);
+
 		ocssd_alloc_request request(4);
 		int size = send(sock, &request, sizeof(class ocssd_alloc_request), 0);
 		printf("Sent %d\n", size);
 
 		class virtual_ocssd vssd;
-		size = recv(sock, &vssd, sizeof(class virtual_ocssd), 0);
-		printf("Received %d, count %d\n", size, vssd.count);
+		size = recv(sock, buffer, BUFFER_SIZE, 0);
+		printf("Received %d\n", size);
+		vssd.deserialize(buffer);
+
 
 	}
 

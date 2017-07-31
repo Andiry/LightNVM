@@ -63,7 +63,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int ret = initialize_ocssd_manager();
+	int ret = 0;
+	ret = initialize_ocssd_manager();
 	if (ret) {
 		printf("OCSSD manager init failed\n");
 		return ret;
@@ -104,19 +105,22 @@ int main(int argc, char **argv)
 			printf("errno %d\n", errno);
 		} else {
 			char buffer[BUFFER_SIZE];
-			memset(buffer, '\0', BUFFER_SIZE);
+			memset(buffer, 0, BUFFER_SIZE);
 			int received = 0;
 			received = recv(connfd, buffer, BUFFER_SIZE - 1, 0);
 			printf("Received %d\n", received);
 			process_request(buffer, received);
 
-			virtual_ocssd vssd;
-			memset(&vssd, 0, sizeof(virtual_ocssd));
-			vssd.count++;
+			virtual_ocssd_unit *unit = new virtual_ocssd_unit("/dev/nvme0n1");
+			unit->add(1);
+			virtual_ocssd *vssd = new virtual_ocssd();;
+			vssd->add(unit);
+			size_t len = vssd->serialize(buffer);
 
-			int sent = send(connfd, &vssd, sizeof(virtual_ocssd), 0);
-			printf("Sent %d, count %d\n", sent, vssd.count);
+			int sent = send(connfd, buffer, len, 0);
+			printf("len %lu, sent %d\n", len, sent);
 
+			delete vssd;
 			close(connfd);
 		}
 	}
