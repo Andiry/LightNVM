@@ -24,7 +24,7 @@ public:
 class virtual_ocssd_unit {
 public:
 
-	virtual_ocssd_unit(std::string dev_name)
+	virtual_ocssd_unit(std::string dev_name = "")
 		:dev_name_(dev_name) {}
 
 	size_t serialize(char *&buffer);
@@ -93,6 +93,7 @@ size_t virtual_ocssd_unit::deserialize(const char *&buffer) {
 	p += name_len;
 
 	uint32_t num_lun = deserialize_data(p);
+	std::cout<< "Device " << dev_name_ << ": " << num_lun << " LUNs" << std::endl;
 
 	for (uint32_t i = 0; i < num_lun; i++)
 		channels_.push_back(deserialize_data(p));
@@ -137,12 +138,19 @@ size_t virtual_ocssd::deserialize(const char *buffer) {
 	uint32_t num_unit = 0;
 
 	magic = deserialize_data(p);
-	printf("MAGIC: %x\n", magic);
-	num_unit = deserialize_data(p);
-	printf("Num unit: %u\n", num_unit);
+	if (magic != SERIALIZE_MAGIC) {
+		printf("Incorrect MAGIC: %x\n", magic);
+		return 0;
+	}
 
-//	for (virtual_ocssd_unit *unit : units_)
-//		unit->serialize(p);
+	num_unit = deserialize_data(p);
+	printf("%u Devices\n", num_unit);
+
+	for (uint32_t i = 0; i < num_unit; i++) {
+		virtual_ocssd_unit *unit = new virtual_ocssd_unit();
+		unit->deserialize(p);
+		units_.push_back(unit);
+	}
 
 	return p - buffer;
 }
