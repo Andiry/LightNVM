@@ -67,35 +67,102 @@ private:
 	uint32_t numa_id_;
 };
 
-class virtual_ocssd_unit {
-public:
-
-	virtual_ocssd_unit(std::string dev_name = "")
-		:dev_name_(dev_name) {}
-
-	size_t serialize(char *&buffer);
-	size_t deserialize(const char *&buffer);
-	void add(uint32_t channel) {channels_.push_back(channel);}
-
-private:
-	std::string dev_name_;
-	std::vector<uint32_t> channels_;
-};
-
 /*
- * Serialize format:
+ * Virtual OCSSD serialization format:
  * SERIALIZE_MAGIC		4 bytes
  * NUM_UNITS			4 bytes
  *	DEV_NAME_LEN		4 bytes
  *	DEV_NAME		4 bytes * N
  *	NUM_CHANNELS		4 bytes
  *		CHANNEL_ID	4 bytes
+ *		SHARED		4 bytes
  *		NUM_LUNS	4 bytes
- *		LUN_ID		4 bytes
- *		LUN_ID		4 bytes
+ *		LUN_ID		4 bytes		if SHARED == 1
+ *		LUN_ID		4 bytes		if SHARED == 1
  *		...
- *
  */
+
+class virtual_ocssd_channel {
+public:
+
+	virtual_ocssd_channel(uint32_t channel_id = 0, uint32_t shared = 0)
+		: channel_id_(channel_id),
+		shared_(shared),
+		num_luns_(0) {}
+
+	size_t serialize(char *&buffer);
+	size_t deserialize(const char *&buffer);
+
+	void add(uint32_t lun) {
+		num_luns_++;
+		luns_.push_back(lun);
+	}
+
+private:
+	uint32_t channel_id_;
+	uint32_t shared_;
+	uint32_t num_luns_;
+	std::vector<uint32_t> luns_;
+};
+
+size_t virtual_ocssd_channel::serialize(char *&buffer) {
+	char *start = buffer;
+	char *&p = buffer;
+
+	serialize_data(p, channel_id_);
+	serialize_data(p, shared_);
+	serialize_data(p, num_luns_);
+
+	if (shared_ == 1) {
+		for (int lun : luns_)
+			serialize_data(p, lun);
+	}
+
+	return p - start;
+}
+
+size_t virtual_ocssd_channel::deserialize(const char *&buffer) {
+	const char *start = buffer;
+	const char *&p = buffer;
+
+	channel_id_ = deserialize_data(p);
+	shared_ = deserialize_data(p);
+	num_luns_ = deserialize_data(p);
+
+	std::cout << "Channel " << channel_id_ << ": "
+		  << "shared " << shared_ << ", "
+		  << num_luns_ << " LUNs" << std::endl;
+
+	for (uint32_t i = 0; i < num_luns_; i++) {
+		if (shared_ == 1)
+			luns_.push_back(deserialize_data(p));
+		else
+			luns_.push_back(i);
+	}
+
+	return p - start;
+}
+
+class virtual_ocssd_unit {
+public:
+
+	virtual_ocssd_unit(std::string dev_name = "")
+		:dev_name_(dev_name) {}
+
+	~virtual_ocssd_unit() {
+		for (auto channel : channels_)
+			delete channel;
+	}
+
+	size_t serialize(char *&buffer);
+	size_t deserialize(const char *&buffer);
+	void add(virtual_ocssd_channel *channel) {channels_.push_back(channel);}
+
+private:
+	std::string dev_name_;
+	std::vector<virtual_ocssd_channel *> channels_;
+};
+
 size_t virtual_ocssd_unit::serialize(char *&buffer) {
 	char *start = buffer;
 	char *&p = buffer;
@@ -108,8 +175,8 @@ size_t virtual_ocssd_unit::serialize(char *&buffer) {
 
 	serialize_data(p, channels_.size());
 
-	for (int channel : channels_)
-		serialize_data(p, channel);
+	for (virtual_ocssd_channel *channel : channels_)
+		channel->serialize(p);
 
 	return p - start;
 }
@@ -124,11 +191,15 @@ size_t virtual_ocssd_unit::deserialize(const char *&buffer) {
 	name_len = (name_len + 3) / 4 * 4;
 	p += name_len;
 
-	uint32_t num_lun = deserialize_data(p);
-	std::cout<< "Device " << dev_name_ << ": " << num_lun << " LUNs" << std::endl;
+	uint32_t num_channel = deserialize_data(p);
+	std::cout<< "Device " << dev_name_ << ": "
+		 << num_channel << " channels" << std::endl;
 
-	for (uint32_t i = 0; i < num_lun; i++)
-		channels_.push_back(deserialize_data(p));
+	for (uint32_t i = 0; i < num_channel; i++) {
+		virtual_ocssd_channel *channel = new virtual_ocssd_channel();
+		channel->deserialize(p);
+		channels_.push_back(channel);
+	}
 
 	return p - start;
 }

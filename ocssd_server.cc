@@ -95,8 +95,22 @@ int main(int argc, char **argv)
 			printf("Received %d\n", received);
 			process_request(buffer, received);
 
+			virtual_ocssd_channel *channel1 = new virtual_ocssd_channel(1, 1);
+			channel1->add(3);
+			channel1->add(5);
+			channel1->add(7);
+			channel1->add(8);
+
+			virtual_ocssd_channel *channel2 = new virtual_ocssd_channel(2, 1);
+			channel2->add(0);
+			channel2->add(1);
+			channel2->add(4);
+			channel2->add(5);
+
 			virtual_ocssd_unit *unit = new virtual_ocssd_unit("/dev/nvme0n1");
-			unit->add(1);
+			unit->add(channel1);
+			unit->add(channel2);
+
 			virtual_ocssd *vssd = new virtual_ocssd();;
 			vssd->add(unit);
 			size_t len = vssd->serialize(buffer);
