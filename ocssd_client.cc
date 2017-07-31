@@ -40,15 +40,15 @@ int main(int argc, char **argv)
 		memset(buffer, 0, BUFFER_SIZE);
 
 		ocssd_alloc_request request(4);
-		int size = send(sock, &request, sizeof(class ocssd_alloc_request), 0);
-		printf("Sent %d\n", size);
+		size_t size = request.serialize(buffer);
+
+		int sent = send(sock, buffer, size, 0);
+		printf("Request size %lu, sent %d\n", size, sent);
 
 		class virtual_ocssd vssd;
 		size = recv(sock, buffer, BUFFER_SIZE, 0);
-		printf("Received %d\n", size);
+		printf("Received %lu\n", size);
 		vssd.deserialize(buffer);
-
-
 	}
 
 	close(sock);

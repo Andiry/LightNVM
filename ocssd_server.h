@@ -5,20 +5,59 @@
 #include <string>
 #include <mutex>
 
-#define OCSSD_MAGIC 0xDEADBEEF
+static inline void serialize_data(char *&buffer, uint32_t data) {
+	char *&p = buffer;
+	*(uint32_t *)p = data;
+	p += sizeof(uint32_t);
+}
+
+static inline uint32_t deserialize_data(const char *&buffer) {
+	uint32_t data;
+	const char *&p = buffer;
+	data = *(uint32_t *)p;
+	p += sizeof(uint32_t);
+	return data;
+}
+
+#define REQUEST_MAGIC 0x6501
 
 class ocssd_alloc_request {
 public:
-	uint64_t magic_;
-	int num_channels_;
-	int shared_;
-	int numa_id_;
 
 	ocssd_alloc_request(int num_channels, int shared = 0, int numa_id = 0)
-		:magic_(OCSSD_MAGIC),
-		num_channels_(num_channels),
+		: num_channels_(num_channels),
 		shared_(shared),
 		numa_id_(numa_id) {}
+
+	ocssd_alloc_request(const char *buffer) {
+		uint32_t magic = deserialize_data(buffer);
+		if (magic != REQUEST_MAGIC) {
+			printf("Incorrect MAGIC: %x\n", magic);
+			throw std::runtime_error("Error: init request failed\n");
+		}
+
+		num_channels_	= deserialize_data(buffer);
+		shared_		= deserialize_data(buffer);
+		numa_id_	= deserialize_data(buffer);
+
+		printf("Request %u channels, shared %u, NUMA %u\n",
+			num_channels_, shared_, numa_id_);
+	}
+
+	size_t serialize(char *buffer) {
+		char *start = buffer;
+		serialize_data(buffer, REQUEST_MAGIC);
+		serialize_data(buffer, num_channels_);
+		serialize_data(buffer, shared_);
+		serialize_data(buffer, numa_id_);
+		return buffer - start;
+	}
+
+private:
+
+	uint32_t num_channels_;
+	uint32_t shared_;
+	uint32_t numa_id_;
 };
 
 class virtual_ocssd_unit {
@@ -35,20 +74,6 @@ private:
 	std::string dev_name_;
 	std::vector<uint32_t> channels_;
 };
-
-static inline void serialize_data(char *&buffer, uint32_t data) {
-	char *&p = buffer;
-	*(uint32_t *)p = data;
-	p += sizeof(uint32_t);
-}
-
-static inline uint32_t deserialize_data(const char *&buffer) {
-	uint32_t data;
-	const char *&p = buffer;
-	data = *(uint32_t *)p;
-	p += sizeof(uint32_t);
-	return data;
-}
 
 /*
  * Serialize format:
@@ -295,7 +320,6 @@ public:
 	int add_ocssd(std::string name);
 
 	~ocssd_manager() {
-		printf("Delete manager\n");
 		for (unsigned int i = 0; i < ocssds_.size(); i++)
 			delete ocssds_[i];
 	}

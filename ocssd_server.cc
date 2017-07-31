@@ -24,25 +24,9 @@ void interrupt(int signum) {
 
 static int process_request(const char *buffer, int size)
 {
-	class ocssd_alloc_request *request;
+	class ocssd_alloc_request *request = new ocssd_alloc_request(buffer);
 
-	if (size != sizeof(class ocssd_alloc_request)) {
-		printf("Received size incorrect: %d\n", size);
-		return -1;
-	}
-
-	request = (class ocssd_alloc_request *)buffer;
-
-	if (request->magic_ != OCSSD_MAGIC) {
-		printf("MAGIC does not match\n");
-		return -1;
-	}
-
-	printf("Request %d channels, shared %d, NUMA ID %d\n",
-		request->num_channels_,
-		request->shared_,
-		request->numa_id_);
-
+	delete request;
 	return 0;
 }
 
