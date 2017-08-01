@@ -90,16 +90,17 @@ private:
 class virtual_ocssd_channel {
 public:
 
-	virtual_ocssd_channel(uint32_t channel_id = 0, uint32_t shared = 0)
+	virtual_ocssd_channel(uint32_t channel_id = 0,
+		uint32_t shared = 0,
+		uint32_t num_luns = 0)
 		: channel_id_(channel_id),
 		shared_(shared),
-		num_luns_(0) {}
+		num_luns_(num_luns) {}
 
 	size_t serialize(char *&buffer);
 	size_t deserialize(const char *&buffer);
 
 	void add(uint32_t lun) {
-		num_luns_++;
 		luns_.push_back(lun);
 	}
 
@@ -271,7 +272,8 @@ public:
 		num_luns_(num_luns),
 		num_used_(0),
 		num_blocks_(num_blocks),
-		shared_(0)
+		shared_(0),
+		used_(0)
 	{
 		lun_used_ = new uint32_t[num_luns_]();
 	}
@@ -284,8 +286,20 @@ public:
 		shared_ = 1;
 	}
 
+	size_t used() {
+		return used_;
+	}
+
+	void set_used() {
+		used_ = 1;
+	}
+
 	size_t get_channel_id() {
 		return channel_id_;
+	}
+
+	size_t get_num_luns() {
+		return num_luns_;
 	}
 
 	size_t alloc_luns(std::vector<int> & luns, size_t request_lun) {
@@ -316,6 +330,7 @@ private:
 	size_t num_used_;
 	size_t num_blocks_;
 	int shared_;
+	int used_;
 	uint32_t *lun_used_;
 };
 
@@ -448,7 +463,8 @@ size_t ocssd_unit::alloc_shared_channels(virtual_ocssd_unit *vunit,
 		size_t lun = channel->alloc_luns(luns, 1);
 		if (lun > 0) {
 			virtual_ocssd_channel *vchannel =
-				new virtual_ocssd_channel(channel->get_channel_id(), 1);
+				new virtual_ocssd_channel(channel->get_channel_id(),
+							1, lun);
 
 			for (int lun_id : luns)
 				vchannel->add(lun_id);
@@ -469,12 +485,14 @@ size_t ocssd_unit::alloc_exclusive_channels(virtual_ocssd_unit *vunit,
 {
 	size_t channels = 0;
 
-	while (exclusive_channels_.size() > 0) {
-		ocssd_channel *channel = exclusive_channels_.back();
-		exclusive_channels_.pop_back();
+	for (ocssd_channel *channel : exclusive_channels_) {
+		if (channel->used())
+			continue;
 
+		channel->set_used();
 		virtual_ocssd_channel *vchannel =
-			new virtual_ocssd_channel(channel->get_channel_id(), 0);
+			new virtual_ocssd_channel(channel->get_channel_id(),
+						0, channel->get_num_luns());
 
 		vunit->add(vchannel);
 
