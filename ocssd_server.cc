@@ -22,10 +22,20 @@ void interrupt(int signum) {
 	stop = 1;
 }
 
-static int process_request(const char *buffer, int size)
+static int process_request(int connfd, char *buffer, int size)
 {
-	class ocssd_alloc_request *request = new ocssd_alloc_request(buffer);
+	ocssd_alloc_request *request = new ocssd_alloc_request(buffer);
+	virtual_ocssd *vssd = new virtual_ocssd();
+	size_t ret = 0;
 
+	ret = manager->alloc_ocssd_resource(vssd, request);
+
+	size_t len = vssd->serialize(buffer);
+
+	int sent = send(connfd, buffer, len, 0);
+	printf("Alloc %lu channels, len %lu, sent %d\n", ret, len, sent);
+
+	delete vssd;
 	delete request;
 	return 0;
 }
@@ -93,32 +103,7 @@ int main(int argc, char **argv)
 			int received = 0;
 			received = recv(connfd, buffer, BUFFER_SIZE - 1, 0);
 			printf("Received %d\n", received);
-			process_request(buffer, received);
-
-			virtual_ocssd_channel *channel1 = new virtual_ocssd_channel(1, 1);
-			channel1->add(3);
-			channel1->add(5);
-			channel1->add(7);
-			channel1->add(8);
-
-			virtual_ocssd_channel *channel2 = new virtual_ocssd_channel(2, 1);
-			channel2->add(0);
-			channel2->add(1);
-			channel2->add(4);
-			channel2->add(5);
-
-			virtual_ocssd_unit *unit = new virtual_ocssd_unit("/dev/nvme0n1");
-			unit->add(channel1);
-			unit->add(channel2);
-
-			virtual_ocssd *vssd = new virtual_ocssd();;
-			vssd->add(unit);
-			size_t len = vssd->serialize(buffer);
-
-			int sent = send(connfd, buffer, len, 0);
-			printf("len %lu, sent %d\n", len, sent);
-
-			delete vssd;
+			process_request(connfd, buffer, received);
 			close(connfd);
 		}
 	}

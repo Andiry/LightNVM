@@ -39,7 +39,7 @@ int main(int argc, char **argv)
 		char buffer[BUFFER_SIZE];
 		memset(buffer, 0, BUFFER_SIZE);
 
-		ocssd_alloc_request request(4);
+		ocssd_alloc_request request(4, 1);
 		size_t size = request.serialize(buffer);
 
 		int sent = send(sock, buffer, size, 0);

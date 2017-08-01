@@ -60,6 +60,11 @@ public:
 		return buffer - start;
 	}
 
+	uint32_t get_channels() {return num_channels_;}
+	void dec_channels(size_t channels) {num_channels_ -= channels;}
+	uint32_t get_shared() {return shared_;}
+	uint32_t get_numa_id() {return numa_id_;}
+
 private:
 
 	uint32_t num_channels_;
@@ -268,7 +273,7 @@ public:
 		num_blocks_(num_blocks),
 		shared_(0)
 	{
-		lun_used_ = new uint32_t[num_luns_];
+		lun_used_ = new uint32_t[num_luns_]();
 	}
 
 	~ocssd_channel() {
@@ -277,6 +282,10 @@ public:
 
 	void set_shared() {
 		shared_ = 1;
+	}
+
+	size_t get_channel_id() {
+		return channel_id_;
 	}
 
 	size_t alloc_luns(std::vector<int> & luns, size_t request_lun) {
@@ -335,11 +344,18 @@ public:
 		return name_;
 	}
 
+	size_t alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *request);
+
 private:
 
 	int initialize_dev();
 	int channel_ok(size_t channel_id);
 	int assign_to_shared(ocssd_channel *channel);
+
+	size_t alloc_shared_channels(virtual_ocssd_unit *vunit,
+		virtual_ocssd *vssd, ocssd_alloc_request *request);
+	size_t alloc_exclusive_channels(virtual_ocssd_unit *vunit,
+		virtual_ocssd *vssd, ocssd_alloc_request *request);
 
 	std::string name_;
 	struct nvm_dev *dev_;
@@ -421,6 +437,81 @@ int ocssd_unit::initialize_dev()
 	return 0;
 }
 
+size_t ocssd_unit::alloc_shared_channels(virtual_ocssd_unit *vunit,
+	virtual_ocssd *vssd, ocssd_alloc_request *request)
+{
+	size_t channels = 0;
+
+	for (ocssd_channel *channel : shared_channels_) {
+		std::vector<int> luns;
+		/* FIXME: Allocate 1 LUN */
+		size_t lun = channel->alloc_luns(luns, 1);
+		if (lun > 0) {
+			virtual_ocssd_channel *vchannel =
+				new virtual_ocssd_channel(channel->get_channel_id(), 1);
+
+			for (int lun_id : luns)
+				vchannel->add(lun_id);
+
+			vunit->add(vchannel);
+			channels++;
+			if (channels == request->get_channels())
+				goto out;
+		}
+	}
+
+out:
+	return channels;
+}
+
+size_t ocssd_unit::alloc_exclusive_channels(virtual_ocssd_unit *vunit,
+	virtual_ocssd *vssd, ocssd_alloc_request *request)
+{
+	size_t channels = 0;
+
+	while (exclusive_channels_.size() > 0) {
+		ocssd_channel *channel = exclusive_channels_.back();
+		exclusive_channels_.pop_back();
+
+		virtual_ocssd_channel *vchannel =
+			new virtual_ocssd_channel(channel->get_channel_id(), 0);
+
+		vunit->add(vchannel);
+
+		channels++;
+		if (channels == request->get_channels())
+			break;
+	}
+
+	return channels;
+}
+
+size_t ocssd_unit::alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *request)
+{
+	size_t channels = 0;
+
+	if (request->get_channels() == 0)
+		return 0;
+
+	virtual_ocssd_unit *vunit = new virtual_ocssd_unit(name_);
+
+	mutex_.lock();
+
+	if (request->get_shared() == 1)
+		channels = alloc_shared_channels(vunit, vssd, request);
+	else
+		channels = alloc_exclusive_channels(vunit, vssd, request);
+
+	mutex_.unlock();
+
+	if (channels == 0)
+		delete vunit;
+	else
+		vssd->add(vunit);
+
+	return channels;
+}
+
 class ocssd_manager {
 public:
 
@@ -430,6 +521,8 @@ public:
 		for (auto pair : ocssds_)
 			delete pair.second;
 	}
+
+	size_t alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_request *request);
 
 private:
 
@@ -446,4 +539,27 @@ int ocssd_manager::add_ocssd(std::string name)
 	count_++;
 	mutex_.unlock();
 	return 0;
+}
+
+size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_request *request)
+{
+	size_t channels = 0;
+
+	mutex_.lock();
+
+	for (auto pair : ocssds_) {
+		ocssd_unit *unit = pair.second;
+		size_t ret = unit->alloc_channels(vssd, request);
+
+		channels += ret;
+
+		request->dec_channels(ret);
+
+		if (request->get_channels() == 0)
+			break;
+	}
+
+	mutex_.unlock();
+
+	return channels;
 }
