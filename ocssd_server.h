@@ -265,13 +265,39 @@ public:
 		:channel_id_(channel_id),
 		num_luns_(num_luns),
 		num_used_(0),
-		num_blocks_(num_blocks)
+		num_blocks_(num_blocks),
+		shared_(0)
 	{
-		lun_used_ = new int[num_luns_];
+		lun_used_ = new uint32_t[num_luns_];
 	}
 
 	~ocssd_channel() {
 		delete[] lun_used_;
+	}
+
+	void set_shared() {
+		shared_ = 1;
+	}
+
+	size_t alloc_luns(std::vector<int> & luns, size_t request_lun) {
+		if (num_used_ == num_luns_ || request_lun == 0)
+			return 0;
+
+		size_t allocated = 0;
+
+		for (uint32_t i = 0; i < num_luns_; i++) {
+			if (lun_used_[i] == 0) {
+				lun_used_[i] = 1;
+				num_used_++;
+				luns.push_back(i);
+				allocated++;
+
+				if (request_lun == allocated)
+					break;
+			}
+		}
+
+		return allocated;
 	}
 
 private:
@@ -280,7 +306,8 @@ private:
 	size_t num_luns_;
 	size_t num_used_;
 	size_t num_blocks_;
-	int *lun_used_;
+	int shared_;
+	uint32_t *lun_used_;
 };
 
 class ocssd_unit {
@@ -376,10 +403,12 @@ int ocssd_unit::initialize_dev()
 							geo_->nluns,
 							geo_->nblocks);
 
-			if (assign_to_shared(channel))
+			if (assign_to_shared(channel)) {
+				channel->set_shared();
 				shared_channels_.push_back(channel);
-			else
+			} else {
 				exclusive_channels_.push_back(channel);
+			}
 
 			channel_count_++;
 		}
