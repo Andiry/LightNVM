@@ -295,11 +295,11 @@ public:
 	}
 
 	~ocssd_unit() {
-		for (unsigned int i = 0; i < shared_channels_.size(); i++)
-			delete shared_channels_[i];
+		for (ocssd_channel *channel : shared_channels_)
+			delete channel;
 
-		for (unsigned int i = 0; i < exclusive_channels_.size(); i++)
-			delete exclusive_channels_[i];
+		for (ocssd_channel *channel : exclusive_channels_)
+			delete channel;
 
 		nvm_dev_close(dev_);
 	}
@@ -398,8 +398,8 @@ public:
 	int add_ocssd(std::string name);
 
 	~ocssd_manager() {
-		for (unsigned int i = 0; i < ocssds_.size(); i++)
-			delete ocssds_[i];
+		for (auto pair : ocssds_)
+			delete pair.second;
 	}
 
 private:
