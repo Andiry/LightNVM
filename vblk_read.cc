@@ -1,6 +1,8 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<stdint.h>
+#include<time.h>
+#include<sys/time.h>
 #include<liblightnvm.h>
 #include<iostream>
 #include<vector>
@@ -26,6 +28,8 @@ int main(int argc, char **argv) {
 	int channel = 0;
 	void *buf;
 	ssize_t res;
+	struct timespec begin, finish;
+	long long time1;
 
 	if (argc < 3) {
 		printf("usage: ./read $CHANNEL $OFFSET\n");
@@ -69,7 +73,12 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 4096 * 8; i++)
 		((char *)buf)[i] = (i % 26 + 65 + d);
 
+	clock_gettime(CLOCK_MONOTONIC, &begin);
 	res = nvm_vblk_read(blk, buf, 4096 * 8);
+	clock_gettime(CLOCK_MONOTONIC, &finish);
+
+	time1 = (finish.tv_sec * 1e9 + finish.tv_nsec) - (begin.tv_sec * 1e9 + begin.tv_nsec);
+	printf("Read %lld ns, average %lld ns\n", time1, time1 / 1);
 
 	printf("read return %lu\n", res);
 
