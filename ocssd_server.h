@@ -173,12 +173,12 @@ public:
 			delete channel;
 	}
 
-	void generate_units(const struct nvm_geo *geo, std::vector<int> &units);
+	void generate_units(const struct nvm_geo *geo, std::vector<int> &units) const;
 	size_t serialize(char *&buffer);
 	size_t deserialize(const char *&buffer);
 	void add(virtual_ocssd_channel *channel) {channels_.push_back(channel);}
 
-	const std::string& get_dev_name() {return dev_name_;}
+	const std::string& get_dev_name() const {return dev_name_;}
 
 private:
 	std::string dev_name_;
@@ -186,7 +186,7 @@ private:
 };
 
 void virtual_ocssd_unit::generate_units(const struct nvm_geo *geo,
-	std::vector<int> &units)
+	std::vector<int> &units) const
 {
 	for (virtual_ocssd_channel *channel : channels_)
 		channel->generate_units(geo, units);
@@ -245,8 +245,8 @@ public:
 	size_t deserialize(const char *buffer);
 	void add(virtual_ocssd_unit *unit) {units_.push_back(unit);}
 
-	size_t get_num_units() {return units_.size();}
-	const virtual_ocssd_unit *get_unit(int i) {return units_[i];}
+	size_t get_num_units() const {return units_.size();}
+	const virtual_ocssd_unit *get_unit(int i) const {return units_[i];}
 
 private:
 
