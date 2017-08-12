@@ -56,8 +56,8 @@ public:
 		shared_		= deserialize_data(buffer);
 		numa_id_	= deserialize_data(buffer);
 
-		printf("Request %u channels, shared %u, NUMA %u\n",
-			num_channels_, shared_, numa_id_);
+		printf("Request %u channels, %u blocks, shared %u, NUMA %u\n",
+			num_channels_, num_blocks_, shared_, numa_id_);
 	}
 
 	size_t serialize(char *buffer) {
@@ -93,6 +93,7 @@ private:
  *	NUM_CHANNELS		4 bytes
  *		CHANNEL_ID	4 bytes
  *		SHARED		4 bytes
+ *		TOTAL_BLOCKS	4 bytes		Total blocks in this channel
  *		NUM_LUNS	4 bytes
  *		LUN_ID		4 bytes		if SHARED == 1
  *		BLOCKS_START	4 bytes
@@ -152,9 +153,11 @@ public:
 
 	virtual_ocssd_channel(uint32_t channel_id = 0,
 		uint32_t shared = 0,
+		uint32_t total_blocks = 0,
 		uint32_t num_luns = 0)
 		: channel_id_(channel_id),
 		shared_(shared),
+		total_blocks_(total_blocks),
 		num_luns_(num_luns) {}
 
 	virtual_ocssd_channel(uint32_t channel_id,
@@ -162,6 +165,7 @@ public:
 		const std::vector<std::pair<size_t, std::pair<size_t, size_t>>>& alloc_units)
 		: channel_id_(channel_id),
 		shared_(shared),
+		total_blocks_(0),
 		num_luns_(0)
 	{
 		for (auto it : alloc_units) {
@@ -169,6 +173,7 @@ public:
 							it.second.first,
 							it.second.second);
 			luns_.push_back(vlun);
+			total_blocks_ += vlun->get_num_blocks();
 			num_luns_++;
 		}
 	}
@@ -189,6 +194,7 @@ public:
 private:
 	uint32_t channel_id_;
 	uint32_t shared_;
+	uint32_t total_blocks_;
 	uint32_t num_luns_;
 	std::vector<virtual_ocssd_lun *> luns_;
 };
@@ -213,6 +219,7 @@ size_t virtual_ocssd_channel::serialize(char *&buffer) {
 
 	serialize_data(p, channel_id_);
 	serialize_data(p, shared_);
+	serialize_data(p, total_blocks_);
 	serialize_data(p, num_luns_);
 
 	if (shared_ == 1) {
@@ -229,11 +236,13 @@ size_t virtual_ocssd_channel::deserialize(const char *&buffer) {
 
 	channel_id_ = deserialize_data(p);
 	shared_ = deserialize_data(p);
+	total_blocks_ = deserialize_data(p);
 	num_luns_ = deserialize_data(p);
 
 	std::cout << "Channel " << channel_id_ << ": "
 		  << "shared " << shared_ << ", "
-		  << num_luns_ << " LUNs" << std::endl;
+		  << num_luns_ << " LUNs, "
+		  << total_blocks_ << " blocks" << std::endl;
 
 	if (shared_ == 1) {
 		for (uint32_t i = 0; i < num_luns_; i++)
@@ -460,6 +469,10 @@ public:
 		return channel_id_;
 	}
 
+	size_t get_total_blocks() {
+		return num_total_blocks_;
+	}
+
 	size_t get_num_luns() {
 		return num_luns_;
 	}
@@ -494,7 +507,7 @@ private:
 
 	size_t channel_id_;
 	size_t num_luns_;
-	size_t num_blocks_;
+	size_t num_blocks_;		/* # blocks per LUN */
 	size_t num_used_blocks_;
 	size_t num_total_blocks_;	/* Total blocks of this channel */
 	int shared_;
@@ -656,8 +669,9 @@ size_t ocssd_unit::alloc_exclusive_channels(virtual_ocssd_unit *vunit,
 
 		channel->set_used();
 		virtual_ocssd_channel *vchannel =
-			new virtual_ocssd_channel(channel->get_channel_id(),
-						0, channel->get_num_luns());
+			new virtual_ocssd_channel(channel->get_channel_id(), 0,
+						channel->get_total_blocks(),
+						channel->get_num_luns());
 
 		vunit->add(vchannel);
 
