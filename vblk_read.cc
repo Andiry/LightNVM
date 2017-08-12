@@ -74,13 +74,15 @@ int main(int argc, char **argv) {
 		((char *)buf)[i] = (i % 26 + 65 + d);
 
 	clock_gettime(CLOCK_MONOTONIC, &begin);
-	res = nvm_vblk_read(blk, buf, 4096 * 8);
+	res = nvm_vblk_pread(blk, buf, 4096 * 8, 0);
+	printf("read return %lu, %d\n", res, errno);
+	res = nvm_vblk_pread(blk, buf, 4096 * 8, 4096 * 8);
+	printf("read return %lu, %d\n", res, errno);
 	clock_gettime(CLOCK_MONOTONIC, &finish);
 
 	time1 = (finish.tv_sec * 1e9 + finish.tv_nsec) - (begin.tv_sec * 1e9 + begin.tv_nsec);
 	printf("Read %lld ns, average %lld ns\n", time1, time1 / 1);
 
-	printf("read return %lu\n", res);
 
 	free(buf);
 out:

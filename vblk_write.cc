@@ -82,12 +82,15 @@ int main(int argc, char **argv) {
 
 	clock_gettime(CLOCK_MONOTONIC, &begin);
 	res = nvm_vblk_write(blk, buf, 4096 * 8);
+	printf("write return %lu, %d\n", res, errno);
+	res = nvm_vblk_pwrite(blk, buf, 4096 * 8, 4096 * 8);
+	printf("write return %lu, %d\n", res, errno);
 	clock_gettime(CLOCK_MONOTONIC, &finish);
 
 	time1 = (finish.tv_sec * 1e9 + finish.tv_nsec) - (begin.tv_sec * 1e9 + begin.tv_nsec);
 	printf("Write %lld ns, average %lld ns\n", time1, time1 / 1);
 
-	printf("write return %lu\n", res);
+	printf("write return %lu, %d\n", res, errno);
 
 	free(buf);
 out:
