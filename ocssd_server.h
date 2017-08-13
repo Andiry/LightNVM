@@ -183,7 +183,7 @@ public:
 			delete vlun;
 	}
 
-//	void generate_units(const struct nvm_geo *geo, std::vector<int> &units);
+	void generate_units(std::vector<int> &units);
 	size_t serialize(char *&buffer);
 	size_t deserialize(const char *&buffer);
 
@@ -205,19 +205,17 @@ private:
 	std::vector<virtual_ocssd_lun *> luns_;
 };
 
-#if 0
-void virtual_ocssd_channel::generate_units(const struct nvm_geo *geo,
-	std::vector<int> &units)
+void virtual_ocssd_channel::generate_units(std::vector<int> &units)
 {
-	if (shared_ == 0) {
-		for (uint32_t lun = 0; lun < num_luns_; lun++)
-			units.push_back(lun * geo->nchannels + channel_id_);
+	if (shared_ == 1) {
+		for (virtual_ocssd_lun * lun : luns_)
+			units.push_back(lun->get_block_start());
 	} else {
-		for (uint32_t lun : luns_)
-			units.push_back(lun * geo->nchannels + channel_id_);
+		// Use all blocks start at 0
+		for (uint32_t lun = 0; lun < num_luns_; lun++)
+			units.push_back(0);
 	}
 }
-#endif
 
 size_t virtual_ocssd_channel::serialize(char *&buffer) {
 	char *start = buffer;
@@ -269,7 +267,7 @@ public:
 			delete channel;
 	}
 
-//	void generate_units(const struct nvm_geo *geo, std::vector<int> &units) const;
+	void generate_units(std::vector<int> &units) const;
 	size_t serialize(char *&buffer);
 	size_t deserialize(const char *&buffer);
 	void add(virtual_ocssd_channel *channel) {channels_.push_back(channel);}
@@ -282,14 +280,11 @@ private:
 	std::vector<virtual_ocssd_channel *> channels_;
 };
 
-#if 0
-void virtual_ocssd_unit::generate_units(const struct nvm_geo *geo,
-	std::vector<int> &units) const
+void virtual_ocssd_unit::generate_units(std::vector<int> &units) const
 {
 	for (virtual_ocssd_channel *channel : channels_)
-		channel->generate_units(geo, units);
+		channel->generate_units(units);
 }
-#endif
 
 size_t virtual_ocssd_unit::serialize(char *&buffer) {
 	char *start = buffer;
