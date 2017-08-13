@@ -113,9 +113,9 @@ public:
 
 	virtual_ocssd_lun(const char *&buffer);
 
-	uint32_t get_lun_id() { return lun_id_;}
-	uint32_t get_block_start() { return block_start_;}
-	uint32_t get_num_blocks() { return num_blocks_;}
+	uint32_t get_lun_id() const { return lun_id_;}
+	uint32_t get_block_start() const { return block_start_;}
+	uint32_t get_num_blocks() const { return num_blocks_;}
 
 	size_t serialize(char *&buffer);
 
@@ -190,6 +190,12 @@ public:
 	void add(virtual_ocssd_lun * lun) {
 		luns_.push_back(lun);
 	}
+
+	const uint32_t get_channel_id() const {return channel_id_;}
+	bool is_shared() const {return shared_ > 0;}
+	const uint32_t get_total_blocks() const {return total_blocks_;}
+	const uint32_t get_num_luns() const {return num_luns_;}
+	const std::vector<virtual_ocssd_lun *>& get_luns() const {return luns_;}
 
 private:
 	uint32_t channel_id_;
@@ -269,6 +275,7 @@ public:
 	void add(virtual_ocssd_channel *channel) {channels_.push_back(channel);}
 
 	const std::string& get_dev_name() const {return dev_name_;}
+	const std::vector<virtual_ocssd_channel *>& get_channels() const {return channels_;}
 
 private:
 	std::string dev_name_;
@@ -606,7 +613,7 @@ int ocssd_unit::assign_to_shared(ocssd_channel *channel)
 int ocssd_unit::initialize_dev()
 {
 	geo_ = nvm_dev_get_geo(dev_);
-	printf("geo: %lu channels, %lu LUNs, %lu blocks\n",
+	printf("geo: %lu channels, %lu LUNs per channel, %lu blocks per LUN\n",
 		geo_->nchannels, geo_->nluns, geo_->nblocks);
 
 	for (size_t channel_id = 0; channel_id < geo_->nchannels; channel_id++) {

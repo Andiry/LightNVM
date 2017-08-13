@@ -49,6 +49,24 @@ int main(int argc, char **argv)
 		size = recv(sock, buffer, BUFFER_SIZE, 0);
 		printf("Received %lu\n", size);
 		vssd.deserialize(buffer);
+		const virtual_ocssd_unit *vunit = vssd.get_unit(0);
+
+		for (const virtual_ocssd_channel *vchannel : vunit->get_channels()) {
+			printf("channel %u, %u LUNs\n",
+				vchannel->get_channel_id(),
+				vchannel->get_num_luns());
+			if (vchannel->is_shared()) {
+				for (const virtual_ocssd_lun * lun : vchannel->get_luns()) {
+					printf("LUN %u: block start %u, %u blocks\n",
+						lun->get_lun_id(),
+						lun->get_block_start(),
+						lun->get_num_blocks());
+				}
+			} else {
+				printf("Exclusive channel, %u blocks\n",
+					vchannel->get_total_blocks());
+			}
+		}
 	}
 
 	close(sock);
