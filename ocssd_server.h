@@ -372,7 +372,7 @@ void virtual_ocssd_unit::print() const {
 
 class virtual_ocssd {
 public:
-	virtual_ocssd() {}
+	virtual_ocssd() : id_(0) {}
 	~virtual_ocssd() {
 		for (auto p : units_)
 			delete p;
@@ -381,13 +381,14 @@ public:
 	size_t serialize(char *buffer);
 	size_t deserialize(const char *buffer);
 	void add(virtual_ocssd_unit *unit) {units_.push_back(unit);}
+	void set_id(int id) {id_ = id;}
 
 	size_t get_num_units() const {return units_.size();}
 	const virtual_ocssd_unit *get_unit(int i) const {return units_[i];}
 	void print() const;
 
 private:
-
+	int id_;
 	std::vector<virtual_ocssd_unit *> units_;
 };
 
@@ -768,12 +769,14 @@ public:
 	}
 
 	size_t alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_request *request);
+	int persist() { return 0;}
 
 private:
 
 	std::mutex mutex_;
 	std::unordered_map<int, ocssd_unit *> ocssds_;
 	int count_ = 0;
+	int vssd_id_ = 0;
 };
 
 int ocssd_manager::add_ocssd(std::string name)
@@ -803,5 +806,7 @@ size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_requ
 			break;
 	}
 
+	vssd->set_id(vssd_id_);
+	vssd_id_++;
 	return channels;
 }

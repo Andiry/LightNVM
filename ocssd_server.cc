@@ -36,6 +36,7 @@ static int process_request(int connfd, char *buffer, int size)
 	printf("Alloc %lu channels, len %lu, sent %d\n", ret, len, sent);
 
 	vssd->print();
+	manager->persist();
 
 	delete vssd;
 	delete request;
@@ -111,6 +112,7 @@ int main(int argc, char **argv)
 	}
 
 	printf("Closing...\n");
+	manager->persist();
 	delete manager;
 	close(sock);
 
