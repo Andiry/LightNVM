@@ -619,7 +619,7 @@ int ocssd_unit::channel_ok(size_t channel_id)
 		return -ENOMEM;
 	}
 
-	res = nvm_vblk_read(blk, buf, size);
+	res = nvm_vblk_pread(blk, buf, size, 0);
 
 	ret = res == size ? 1 : 0;
 
