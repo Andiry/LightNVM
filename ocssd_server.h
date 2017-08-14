@@ -383,6 +383,7 @@ public:
 	size_t deserialize(const char *buffer);
 	void add(virtual_ocssd_unit *unit) {units_.push_back(unit);}
 	void set_id(uint32_t id) {id_ = id;}
+	uint32_t get_id() const { return id_;}
 
 	size_t get_num_units() const {return units_.size();}
 	const virtual_ocssd_unit *get_unit(int i) const {return units_[i];}
@@ -433,6 +434,7 @@ size_t virtual_ocssd::deserialize(const char *buffer) {
 }
 
 void virtual_ocssd::print() const {
+	printf("Virtual SSD ID %u, %lu Devices\n", id_, units_.size());
 	for (virtual_ocssd_unit * vunit : units_)
 		vunit->print();
 }
