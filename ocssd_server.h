@@ -105,6 +105,7 @@ private:
 /*
  * Virtual OCSSD serialization format:
  * SERIALIZE_MAGIC		4 bytes
+ * VIRTUAL SSD ID		4 bytes
  * NUM_UNITS			4 bytes
  *	DEV_NAME_LEN		4 bytes
  *	DEV_NAME		4 bytes * N
@@ -381,14 +382,14 @@ public:
 	size_t serialize(char *buffer);
 	size_t deserialize(const char *buffer);
 	void add(virtual_ocssd_unit *unit) {units_.push_back(unit);}
-	void set_id(int id) {id_ = id;}
+	void set_id(uint32_t id) {id_ = id;}
 
 	size_t get_num_units() const {return units_.size();}
 	const virtual_ocssd_unit *get_unit(int i) const {return units_[i];}
 	void print() const;
 
 private:
-	int id_;
+	uint32_t id_;
 	std::vector<virtual_ocssd_unit *> units_;
 };
 
@@ -398,6 +399,7 @@ size_t virtual_ocssd::serialize(char *buffer) {
 	char *p = buffer;
 
 	serialize_data(p, SERIALIZE_MAGIC);
+	serialize_data(p, id_);
 	serialize_data(p, units_.size());
 
 	for (virtual_ocssd_unit *unit : units_)
@@ -417,8 +419,9 @@ size_t virtual_ocssd::deserialize(const char *buffer) {
 		return 0;
 	}
 
+	id_ = deserialize_data(p);
 	num_unit = deserialize_data(p);
-	printf("%u Devices\n", num_unit);
+	printf("ID %u, %u Devices\n", id_, num_unit);
 
 	for (uint32_t i = 0; i < num_unit; i++) {
 		virtual_ocssd_unit *unit = new virtual_ocssd_unit();
@@ -761,13 +764,14 @@ size_t ocssd_unit::alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *requ
 class ocssd_manager {
 public:
 
-	int add_ocssd(std::string name);
+	ocssd_manager() : count_(0), vssd_id_(0) {}
 
 	~ocssd_manager() {
 		for (auto pair : ocssds_)
 			delete pair.second;
 	}
 
+	int add_ocssd(std::string name);
 	size_t alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_request *request);
 	int persist() { return 0;}
 
@@ -775,8 +779,8 @@ private:
 
 	std::mutex mutex_;
 	std::unordered_map<int, ocssd_unit *> ocssds_;
-	int count_ = 0;
-	int vssd_id_ = 0;
+	int count_;
+	uint32_t vssd_id_;
 };
 
 int ocssd_manager::add_ocssd(std::string name)
