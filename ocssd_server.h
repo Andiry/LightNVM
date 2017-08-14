@@ -5,6 +5,24 @@
 #include <string>
 #include <mutex>
 
+
+class MutexLock {
+public:
+	explicit MutexLock(std::mutex *mutex)
+	: mutex_(mutex) {
+		mutex_->lock();
+	}
+
+	~MutexLock() { mutex_->unlock();}
+
+private:
+	std::mutex *const mutex_;
+	// No copying
+	MutexLock(const MutexLock&);
+	void operator=(const MutexLock&);
+};
+
+
 static inline void serialize_data(char *&buffer, uint32_t data) {
 	char *&p = buffer;
 	*(uint32_t *)p = data;
@@ -725,14 +743,12 @@ size_t ocssd_unit::alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *requ
 
 	virtual_ocssd_unit *vunit = new virtual_ocssd_unit(name_);
 
-	mutex_.lock();
+	MutexLock lock(&mutex_);
 
 	if (request->get_shared() == 1)
 		channels = alloc_shared_channels(vunit, vssd, request);
 	else
 		channels = alloc_exclusive_channels(vunit, vssd, request);
-
-	mutex_.unlock();
 
 	if (channels == 0)
 		delete vunit;
@@ -764,10 +780,9 @@ private:
 int ocssd_manager::add_ocssd(std::string name)
 {
 	ocssd_unit *unit = new ocssd_unit(name);
-	mutex_.lock();
+	MutexLock lock(&mutex_);
 	ocssds_[count_] = unit;
 	count_++;
-	mutex_.unlock();
 	return 0;
 }
 
@@ -775,7 +790,7 @@ size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_requ
 {
 	size_t channels = 0;
 
-	mutex_.lock();
+	MutexLock lock(&mutex_);
 
 	for (auto pair : ocssds_) {
 		ocssd_unit *unit = pair.second;
@@ -788,8 +803,6 @@ size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_requ
 		if (request->get_channels() == 0)
 			break;
 	}
-
-	mutex_.unlock();
 
 	return channels;
 }
