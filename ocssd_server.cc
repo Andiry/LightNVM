@@ -35,6 +35,8 @@ static int process_request(int connfd, char *buffer, int size)
 	int sent = send(connfd, buffer, len, 0);
 	printf("Alloc %lu channels, len %lu, sent %d\n", ret, len, sent);
 
+	vssd->print();
+
 	delete vssd;
 	delete request;
 	return 0;

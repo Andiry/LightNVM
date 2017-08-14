@@ -118,6 +118,7 @@ public:
 	uint32_t get_num_blocks() const { return num_blocks_;}
 
 	size_t serialize(char *&buffer);
+	void print() const;
 
 private:
 	uint32_t lun_id_;
@@ -143,6 +144,12 @@ virtual_ocssd_lun::virtual_ocssd_lun(const char *&buffer) {
 	block_start_ = deserialize_data(p);
 	num_blocks_ = deserialize_data(p);
 
+	std::cout << "LUN " << lun_id_ << ": "
+		  << "block start " << block_start_ << ", "
+		  << num_blocks_ << " blocks" << std::endl;
+}
+
+void virtual_ocssd_lun::print() const {
 	std::cout << "LUN " << lun_id_ << ": "
 		  << "block start " << block_start_ << ", "
 		  << num_blocks_ << " blocks" << std::endl;
@@ -196,6 +203,7 @@ public:
 	const uint32_t get_total_blocks() const {return total_blocks_;}
 	const uint32_t get_num_luns() const {return num_luns_;}
 	const std::vector<virtual_ocssd_lun *>& get_luns() const {return luns_;}
+	void print() const;
 
 private:
 	uint32_t channel_id_;
@@ -256,6 +264,15 @@ size_t virtual_ocssd_channel::deserialize(const char *&buffer) {
 	return p - start;
 }
 
+void virtual_ocssd_channel::print() const {
+	std::cout << "Channel " << channel_id_ << ": "
+		  << "shared " << shared_ << ", "
+		  << num_luns_ << " LUNs, total "
+		  << total_blocks_ << " blocks" << std::endl;
+	for (virtual_ocssd_lun * vlun : luns_)
+		vlun->print();
+}
+
 class virtual_ocssd_unit {
 public:
 
@@ -274,6 +291,7 @@ public:
 
 	const std::string& get_dev_name() const {return dev_name_;}
 	const std::vector<virtual_ocssd_channel *>& get_channels() const {return channels_;}
+	void print() const;
 
 private:
 	std::string dev_name_;
@@ -327,6 +345,13 @@ size_t virtual_ocssd_unit::deserialize(const char *&buffer) {
 	return p - start;
 }
 
+void virtual_ocssd_unit::print() const {
+	std::cout<< "Device " << dev_name_ << ": "
+		 << channels_.size() << " channels" << std::endl;
+	for (virtual_ocssd_channel * vchannel : channels_)
+		vchannel->print();
+}
+
 class virtual_ocssd {
 public:
 	virtual_ocssd() {}
@@ -341,6 +366,7 @@ public:
 
 	size_t get_num_units() const {return units_.size();}
 	const virtual_ocssd_unit *get_unit(int i) const {return units_[i];}
+	void print() const;
 
 private:
 
@@ -384,6 +410,10 @@ size_t virtual_ocssd::deserialize(const char *buffer) {
 	return p - buffer;
 }
 
+void virtual_ocssd::print() const {
+	for (virtual_ocssd_unit * vunit : units_)
+		vunit->print();
+}
 
 /* ====================== Physical resource ======================== */
 
@@ -577,6 +607,7 @@ int ocssd_unit::channel_ok(size_t channel_id)
 	addr.ppa = 0;
 	addr.g.ch = channel_id;
 	addr.g.lun = 0;
+	addr.g.blk = 0;
 
 	addrs.push_back(addr);
 
