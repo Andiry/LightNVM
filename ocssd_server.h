@@ -701,11 +701,10 @@ size_t ocssd_unit::alloc_shared_channels(virtual_ocssd_unit *vunit,
 			vunit->add(vchannel);
 			channels++;
 			if (channels == request->get_channels())
-				goto out;
+				break;
 		}
 	}
 
-out:
 	return channels;
 }
 
