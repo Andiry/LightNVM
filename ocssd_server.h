@@ -105,7 +105,7 @@ private:
 /*
  * Virtual OCSSD serialization format:
  * SERIALIZE_MAGIC		4 bytes
- * VIRTUAL SSD ID		4 bytes
+ * VIRTUAL_SSD_ID		4 bytes
  * NUM_UNITS			4 bytes
  *	DEV_NAME_LEN		4 bytes
  *	DEV_NAME		4 bytes * N
