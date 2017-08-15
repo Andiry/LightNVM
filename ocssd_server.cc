@@ -101,12 +101,13 @@ int main(int argc, char **argv)
 		if (connfd < 0) {
 			printf("errno %d\n", errno);
 		} else {
-			char buffer[BUFFER_SIZE];
+			char *buffer = new char[BUFFER_SIZE];
 			memset(buffer, 0, BUFFER_SIZE);
 			int received = 0;
 			received = recv(connfd, buffer, BUFFER_SIZE - 1, 0);
 			printf("Received %d\n", received);
 			process_request(connfd, buffer, received);
+			delete[] buffer;
 			close(connfd);
 		}
 	}

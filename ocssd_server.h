@@ -136,7 +136,7 @@ public:
 	uint32_t get_block_start() const { return block_start_;}
 	uint32_t get_num_blocks() const { return num_blocks_;}
 
-	size_t serialize(char *&buffer);
+	size_t serialize(char *&buffer) const;
 	void print() const;
 
 private:
@@ -145,7 +145,7 @@ private:
 	uint32_t num_blocks_;
 };
 
-size_t virtual_ocssd_lun::serialize(char *&buffer) {
+size_t virtual_ocssd_lun::serialize(char *&buffer) const {
 	char *start = buffer;
 	char *&p = buffer;
 
@@ -210,7 +210,7 @@ public:
 	}
 
 	void generate_units(std::vector<int> &units);
-	size_t serialize(char *&buffer);
+	size_t serialize(char *&buffer) const;
 	size_t deserialize(const char *&buffer);
 
 	void add(virtual_ocssd_lun * lun) {
@@ -244,7 +244,7 @@ void virtual_ocssd_channel::generate_units(std::vector<int> &units)
 	}
 }
 
-size_t virtual_ocssd_channel::serialize(char *&buffer) {
+size_t virtual_ocssd_channel::serialize(char *&buffer) const {
 	char *start = buffer;
 	char *&p = buffer;
 
@@ -254,7 +254,7 @@ size_t virtual_ocssd_channel::serialize(char *&buffer) {
 	serialize_data(p, num_luns_);
 
 	if (shared_ == 1) {
-		for (virtual_ocssd_lun * lun : luns_)
+		for (const virtual_ocssd_lun * lun : luns_)
 			lun->serialize(p);
 	}
 
@@ -304,7 +304,7 @@ public:
 	}
 
 	void generate_units(std::vector<int> &units) const;
-	size_t serialize(char *&buffer);
+	size_t serialize(char *&buffer) const;
 	size_t deserialize(const char *&buffer);
 	void add(virtual_ocssd_channel *channel) {channels_.push_back(channel);}
 
@@ -323,7 +323,7 @@ void virtual_ocssd_unit::generate_units(std::vector<int> &units) const
 		channel->generate_units(units);
 }
 
-size_t virtual_ocssd_unit::serialize(char *&buffer) {
+size_t virtual_ocssd_unit::serialize(char *&buffer) const {
 	char *start = buffer;
 	char *&p = buffer;
 	size_t len = dev_name_.length() + 1;
@@ -335,7 +335,7 @@ size_t virtual_ocssd_unit::serialize(char *&buffer) {
 
 	serialize_data(p, channels_.size());
 
-	for (virtual_ocssd_channel *channel : channels_)
+	for (const virtual_ocssd_channel *channel : channels_)
 		channel->serialize(p);
 
 	return p - start;
@@ -379,7 +379,7 @@ public:
 			delete p;
 	}
 
-	size_t serialize(char *buffer);
+	size_t serialize(char *buffer) const;
 	size_t deserialize(const char *buffer);
 	void add(virtual_ocssd_unit *unit) {units_.push_back(unit);}
 	void set_id(uint32_t id) {id_ = id;}
@@ -396,14 +396,14 @@ private:
 
 #define SERIALIZE_MAGIC 0x6502
 
-size_t virtual_ocssd::serialize(char *buffer) {
+size_t virtual_ocssd::serialize(char *buffer) const {
 	char *p = buffer;
 
 	serialize_data(p, SERIALIZE_MAGIC);
 	serialize_data(p, id_);
 	serialize_data(p, units_.size());
 
-	for (virtual_ocssd_unit *unit : units_)
+	for (const virtual_ocssd_unit *unit : units_)
 		unit->serialize(p);
 
 	return p - buffer;
