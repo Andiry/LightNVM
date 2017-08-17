@@ -5,6 +5,7 @@
 #include <string>
 #include <mutex>
 
+#define OCSSD_PORT	50001
 
 class MutexLock {
 public:
