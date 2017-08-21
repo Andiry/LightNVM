@@ -530,6 +530,13 @@ public:
 		return num_total_blocks_;
 	}
 
+	size_t get_free_blocks() {
+		if (used_)
+			return 0;
+
+		return num_total_blocks_ - num_use_blocks_;
+	}
+
 	size_t get_num_luns() {
 		return num_luns_;
 	}
@@ -557,6 +564,7 @@ public:
 				break;
 		}
 
+		num_used_blocks_ += allocated;
 		return allocated;
 	}
 
