@@ -5,6 +5,8 @@
 #include <string>
 #include <mutex>
 
+#include "azure_config.h"
+
 #define OCSSD_PORT	50001
 
 class MutexLock {
@@ -814,7 +816,10 @@ int ocssd_unit::get_ocssd_stats(
 class ocssd_manager {
 public:
 
-	ocssd_manager() : count_(0), vssd_id_(0) {}
+	ocssd_manager() : count_(0), vssd_id_(0) {
+		ip_ = get_ip();
+		std::cout << ip_ << std::endl;
+	}
 
 	~ocssd_manager() {
 		for (auto pair : ocssds_)
@@ -827,6 +832,7 @@ public:
 
 private:
 
+	std::string ip_;
 	std::mutex mutex_;
 	std::unordered_map<int, ocssd_unit *> ocssds_;
 	int count_;
