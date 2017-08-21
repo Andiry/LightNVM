@@ -534,7 +534,7 @@ public:
 		if (used_)
 			return 0;
 
-		return num_total_blocks_ - num_use_blocks_;
+		return num_total_blocks_ - num_used_blocks_;
 	}
 
 	size_t get_num_luns() {
@@ -606,6 +606,10 @@ public:
 	}
 
 	size_t alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *request);
+	int get_ocssd_stats(
+		size_t &numSharedChannels,
+		size_t &numExclusiveChannels,
+		size_t &freeBlocks);
 
 private:
 
@@ -770,6 +774,41 @@ size_t ocssd_unit::alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *requ
 		vssd->add(vunit);
 
 	return channels;
+}
+
+int ocssd_unit::get_ocssd_stats(
+	size_t &numSharedChannels,
+	size_t &numExclusiveChannels,
+	size_t &freeBlocks)
+{
+	size_t shared = 0;
+	size_t exclusive = 0;
+	size_t blocks = 0;
+	size_t free_blocks = 0;
+
+	MutexLock lock(&mutex_);
+
+	for (ocssd_channel *channel : shared_channels_) {
+		free_blocks = channel->get_free_blocks();
+		if (free_blocks > 0) {
+			blocks += free_blocks;
+			shared++;
+		}
+	}
+
+	for (ocssd_channel *channel : exclusive_channels_) {
+		free_blocks = channel->get_free_blocks();
+		if (free_blocks > 0) {
+			blocks += free_blocks;
+			exclusive++;
+		}
+	}
+
+	numSharedChannels = shared;
+	numExclusiveChannels = exclusive;
+	freeBlocks = blocks;
+
+	return 0;
 }
 
 class ocssd_manager {
