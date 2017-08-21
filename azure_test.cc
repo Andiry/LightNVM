@@ -8,9 +8,9 @@ const utility::string_t AzureConnectionString(U("DefaultEndpointsProtocol=https;
 
 const utility::string_t OCSSDResourceTableName(U("OCSSDResource2"));
 
-static int insert_entity()
+static int insert_entity(const char * str)
 {
-	azure::storage::table_entity entity(U("OCSSD"), U("Test"));
+	azure::storage::table_entity entity(U("OCSSD"), U(str));
 
 	azure::storage::table_entity::properties_type &properties = entity.properties();
 	properties.reserve(2);
@@ -56,6 +56,7 @@ static int retrieve_entity()
 
 int main()
 {
-	insert_entity();
+	insert_entity("Test");
+	insert_entity("Test1");
 	retrieve_entity();
 }
