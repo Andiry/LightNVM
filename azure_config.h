@@ -12,9 +12,9 @@
 
 const utility::string_t AzureConnectionString(U("DefaultEndpointsProtocol=https;AccountName=andiry;AccountKey=GEdd85kJS4sWnzfp+t8ikhsgbr1QPqZy0ZbocPI2fKGdiBhB8Agom9UwOW8OUvWpFq7bcOdnT34O/woiSY6W2w==;EndpointSuffix=core.windows.net"));
 
-const utility::string_t OCSSDResourceTableName(U("OCSSDResource2"));
+const utility::string_t OCSSDResourceTableName(U("OCSSDResource"));
 
 std::string get_ip();
-int insert_entity(const std::string &str);
+int insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks);
 int retrieve_entity();
 

@@ -32,15 +32,16 @@ std::string get_ip()
 	return ret;
 }
 
-int insert_entity(const std::string &str)
+int insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks)
 {
-	azure::storage::table_entity entity(U("OCSSD"), U(str));
+	azure::storage::table_entity entity(U("OCSSD"), U(device));
 
 	azure::storage::table_entity::properties_type &properties = entity.properties();
-	properties.reserve(2);
+	properties.reserve(3);
 
-	properties[U("Email")] = azure::storage::entity_property(U("t-jianxu@microsoft.com"));
-	properties[U("Phone")] = azure::storage::entity_property(U("8589006842"));
+	properties[U("NumSharedChannels")] = azure::storage::entity_property(U(std::to_string(numShared)));
+	properties[U("NumExclusiveChannels")] = azure::storage::entity_property(U(std::to_string(numExclusive)));
+	properties[U("FreeBlocks")] = azure::storage::entity_property(U(std::to_string(freeBlocks)));
 	azure::storage::table_operation insert_operation =
 		azure::storage::table_operation::insert_or_replace_entity(entity);
 
@@ -70,9 +71,10 @@ int retrieve_entity()
 	for (; it != end_of_results; ++it) {
 		const azure::storage::table_entity::properties_type &properties = it->properties();
 		std::cout << U("PartitionKey: ") << it->partition_key().c_str()
-			<< U(", RowKey: ") << it->row_key().c_str()
-			<< U(", Property1: ") << properties.at(U("Email")).string_value().c_str()
-			<< U(", Property2: ") << properties.at(U("Phone")).string_value().c_str() << std::endl;
+			<< U(", Device: ") << it->row_key().c_str()
+			<< U(", NumSharedChannels: ") << properties.at(U("NumSharedChannels")).string_value().c_str()
+			<< U(", NumExclusiveChannels: ") << properties.at(U("NumExclusiveChannels")).string_value().c_str()
+			<< U(", FreeBlocks: ") << properties.at(U("FreeBlocks")).string_value().c_str() << std::endl;
 	}
 
 	return 0;
