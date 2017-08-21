@@ -15,6 +15,6 @@ const utility::string_t AzureConnectionString(U("DefaultEndpointsProtocol=https;
 const utility::string_t OCSSDResourceTableName(U("OCSSDResource"));
 
 std::string get_ip();
-int insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks);
-int retrieve_entity();
+int azure_insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks);
+int azure_retrieve_entity();
 

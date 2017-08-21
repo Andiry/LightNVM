@@ -582,10 +582,14 @@ private:
 	std::vector<ocssd_lun *> luns_;
 };
 
+/* Represents a physical OCSSD */
 class ocssd_unit {
 public:
 
-	ocssd_unit(std::string name) :name_(name) {
+	ocssd_unit(const std::string &ip, const std::string &name)
+		: ip_(ip), name_(name), desc_(ip + "_" + name)
+	{
+		std::replace(desc_.begin(), desc_.end(), '/', '_');
 		dev_ = nvm_dev_open(name.c_str());
 		if (!dev_)
 			throw std::runtime_error("Error: open dev failed\n");
@@ -608,10 +612,7 @@ public:
 	}
 
 	size_t alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *request);
-	int get_ocssd_stats(
-		size_t &numSharedChannels,
-		size_t &numExclusiveChannels,
-		size_t &freeBlocks);
+	int publish_resource();
 
 private:
 
@@ -623,8 +624,14 @@ private:
 		virtual_ocssd *vssd, ocssd_alloc_request *request);
 	size_t alloc_exclusive_channels(virtual_ocssd_unit *vunit,
 		virtual_ocssd *vssd, ocssd_alloc_request *request);
+	int get_ocssd_stats(
+		size_t &numSharedChannels,
+		size_t &numExclusiveChannels,
+		size_t &freeBlocks);
 
+	std::string ip_;
 	std::string name_;
+	std::string desc_;
 	struct nvm_dev *dev_;
 	const struct nvm_geo *geo_;
 	std::mutex mutex_;
@@ -813,6 +820,21 @@ int ocssd_unit::get_ocssd_stats(
 	return 0;
 }
 
+int ocssd_unit::publish_resource()
+{
+	size_t shared = 0;
+	size_t exclusive = 0;
+	size_t blocks = 0;
+	int ret;
+
+	ret = get_ocssd_stats(shared, exclusive, blocks);
+
+	ret = azure_insert_entity(desc_, shared, exclusive, blocks);
+
+	return ret;
+}
+
+/* Represents all the OCSSDs on a single node */
 class ocssd_manager {
 public:
 
@@ -826,9 +848,10 @@ public:
 			delete pair.second;
 	}
 
-	int add_ocssd(std::string name);
+	int add_ocssd(const std::string &name);
 	size_t alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_request *request);
 	int persist() { return 0;}
+	int publish_resource();
 
 private:
 
@@ -839,9 +862,9 @@ private:
 	uint32_t vssd_id_;
 };
 
-int ocssd_manager::add_ocssd(std::string name)
+int ocssd_manager::add_ocssd(const std::string &name)
 {
-	ocssd_unit *unit = new ocssd_unit(name);
+	ocssd_unit *unit = new ocssd_unit(ip_, name);
 	MutexLock lock(&mutex_);
 	ocssds_[count_] = unit;
 	count_++;
@@ -869,4 +892,16 @@ size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_requ
 	vssd->set_id(vssd_id_);
 	vssd_id_++;
 	return channels;
+}
+
+int ocssd_manager::publish_resource()
+{
+	MutexLock lock(&mutex_);
+
+	for (auto pair : ocssds_) {
+		ocssd_unit *unit = pair.second;
+		unit->publish_resource();
+	}
+
+	return ocssds_.size();
 }

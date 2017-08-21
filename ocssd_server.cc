@@ -37,6 +37,7 @@ static int process_request(int connfd, char *buffer, int size)
 
 	vssd->print();
 	manager->persist();
+	manager->publish_resource();
 
 	delete vssd;
 	delete request;
@@ -50,6 +51,7 @@ static int initialize_ocssd_manager()
 		return -ENOMEM;
 
 	manager->add_ocssd("/dev/nvme0n1");
+	manager->publish_resource();
 	return 0;
 }
 

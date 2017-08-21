@@ -32,7 +32,7 @@ std::string get_ip()
 	return ret;
 }
 
-int insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks)
+int azure_insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks)
 {
 	azure::storage::table_entity entity(U("OCSSD"), U(device));
 
@@ -54,7 +54,7 @@ int insert_entity(const std::string &device, size_t numShared, size_t numExclusi
 	return 0;
 }
 
-int retrieve_entity()
+int azure_retrieve_entity()
 {
 	azure::storage::table_query query;
 
