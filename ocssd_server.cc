@@ -81,7 +81,7 @@ int main(int argc, char **argv)
 	ret = listen(sock, 5);
 	assert(ret != -1);
 
-	printf("Listening...\n");
+	std::cout << "Listening on " << ip << ":" << OCSSD_PORT << "..." << std::endl;
 
 	struct sockaddr_in client;
 	socklen_t client_addrlen = sizeof(client);
