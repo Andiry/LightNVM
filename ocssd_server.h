@@ -1,3 +1,5 @@
+#pragma once
+
 #include <liblightnvm.h>
 #include <iostream>
 #include <vector>
