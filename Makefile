@@ -8,7 +8,7 @@ BUILD = $(patsubst %.cc, %, $(SRCS))
 all: $(BUILD)
 
 .cc:
-	$(CC) $(CFLAGS) $< -o $@ $(CLIB)
+	$(CC) $(CFLAGS) $< azure_access.cpp -o $@ $(CLIB)
 
 clean:
 	rm -rf $(BUILD)
