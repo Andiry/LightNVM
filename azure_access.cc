@@ -79,13 +79,3 @@ int azure_retrieve_entity()
 
 	return 0;
 }
-
-#if 0
-int main()
-{
-	std::cout << get_ip() << std::endl;
-	insert_entity("Test");
-	insert_entity("Test1");
-	retrieve_entity();
-}
-#endif
