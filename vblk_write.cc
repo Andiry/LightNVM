@@ -17,32 +17,18 @@ enum BlkState {
 	kBad		= 0x8,
 };
 
-int main(int argc, char **argv) {
-	struct nvm_dev *dev = nvm_dev_open("/dev/nvme0n1");
+static int test_vblk(struct nvm_dev *dev, size_t channel, int offset)
+{
 	const struct nvm_geo *geo;
 	struct nvm_addr addr;
 	std::vector<struct nvm_addr> units;
 	std::deque<std::pair<BlkState, struct nvm_vblk *>> blks;
 	struct nvm_vblk *blk;
-	int i = 0, d = 0;
-	int channel = 0;
 	void *buf;
 	ssize_t res;
 	struct timespec begin, finish;
 	long long time1;
-
-	if (argc < 3) {
-		printf("usage: ./write $CHANNEL $OFFSET\n");
-		return 1;
-	}
-
-	channel = atoi(argv[1]);
-	d = atoi(argv[2]);
-
-	if (!dev) {
-		perror("nvm_dev_open");
-		return 1;
-	}
+	int i;
 
 	geo = nvm_dev_get_geo(dev);
 
@@ -78,13 +64,13 @@ int main(int argc, char **argv) {
 	}
 
 	for (i = 0; i < 4096 * 8; i++)
-		((char *)buf)[i] = (i % 26 + 65 + d);
+		((char *)buf)[i] = (i % 26 + 65 + offset);
 
 	clock_gettime(CLOCK_MONOTONIC, &begin);
 	res = nvm_vblk_write(blk, buf, 4096 * 8);
-	printf("write return %lu, %d\n", res, errno);
+	printf("Channel %lu write return %lu, %d\n", channel, res, errno);
 	res = nvm_vblk_pwrite(blk, buf, 4096 * 8, 4096 * 8);
-	printf("write return %lu, %d\n", res, errno);
+	printf("Channel %lu write return %lu, %d\n", channel, res, errno);
 	clock_gettime(CLOCK_MONOTONIC, &finish);
 
 	time1 = (finish.tv_sec * 1e9 + finish.tv_nsec) - (begin.tv_sec * 1e9 + begin.tv_nsec);
@@ -94,6 +80,37 @@ int main(int argc, char **argv) {
 
 	free(buf);
 out:
+	for (auto pair : blks)
+		nvm_vblk_free(pair.second);
+
+	return 0;
+}
+
+int main(int argc, char **argv) {
+	struct nvm_dev *dev;
+	const struct nvm_geo *geo;
+	int d = 0;
+	size_t channel = 0;
+
+	if (argc < 2) {
+		printf("usage: ./vblk_write $DEVICE\n");
+		return 1;
+	}
+
+	dev = nvm_dev_open(argv[1]);
+
+	if (!dev) {
+		perror("nvm_dev_open");
+		return 1;
+	}
+
+	geo = nvm_dev_get_geo(dev);
+
+	for (channel = 0; channel < geo->nchannels; channel++)
+		test_vblk(dev, channel, d);
+
 	nvm_dev_close(dev);
 	return 0;
 }
+
+

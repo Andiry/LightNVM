@@ -86,6 +86,9 @@ int main(int argc, char **argv) {
 
 	free(buf);
 out:
+	for (auto pair : blks)
+		nvm_vblk_free(pair.second);
+
 	nvm_dev_close(dev);
 	return 0;
 }
