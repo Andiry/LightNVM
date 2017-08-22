@@ -682,7 +682,7 @@ int ocssd_unit::channel_ok(size_t channel_id)
 	std::vector<struct nvm_addr> addrs;
 	struct nvm_addr addr;
 	struct nvm_vblk *blk;
-	int size = 4096 * 8;
+	int size = 4096 * 16;
 	void *buf;
 	ssize_t res;
 	int ret;

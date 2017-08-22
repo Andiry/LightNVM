@@ -30,6 +30,7 @@ int main(int argc, char **argv) {
 	ssize_t res;
 	struct timespec begin, finish;
 	long long time1;
+	int size = 4096 * 16;
 
 	if (argc < 3) {
 		printf("usage: ./read $CHANNEL $OFFSET\n");
@@ -64,19 +65,19 @@ int main(int argc, char **argv) {
 
 	blk = blks[0].second;
 
-	buf = nvm_buf_alloc(geo, 4096 * 8);
+	buf = nvm_buf_alloc(geo, size);
 	if (!buf) {
 		printf("nvm_buf_alloc failed\n");
 		goto out;
 	}
 
-	for (i = 0; i < 4096 * 8; i++)
+	for (i = 0; i < size; i++)
 		((char *)buf)[i] = (i % 26 + 65 + d);
 
 	clock_gettime(CLOCK_MONOTONIC, &begin);
-	res = nvm_vblk_pread(blk, buf, 4096 * 8, 0);
+	res = nvm_vblk_pread(blk, buf, size, 0);
 	printf("read return %lu, %d\n", res, errno);
-	res = nvm_vblk_pread(blk, buf, 4096 * 8, 4096 * 8);
+	res = nvm_vblk_pread(blk, buf, size, size);
 	printf("read return %lu, %d\n", res, errno);
 	clock_gettime(CLOCK_MONOTONIC, &finish);
 

@@ -28,6 +28,7 @@ static int test_vblk(struct nvm_dev *dev, size_t channel, int offset)
 	ssize_t res;
 	struct timespec begin, finish;
 	long long time1;
+	int size = 4096 * 16;
 	int i;
 
 	geo = nvm_dev_get_geo(dev);
@@ -57,19 +58,19 @@ static int test_vblk(struct nvm_dev *dev, size_t channel, int offset)
 	time1 = (finish.tv_sec * 1e9 + finish.tv_nsec) - (begin.tv_sec * 1e9 + begin.tv_nsec);
 	printf("Erase %lld ns, average %lld ns\n", time1, time1 / 1);
 
-	buf = nvm_buf_alloc(geo, 4096 * 8);
+	buf = nvm_buf_alloc(geo, size);
 	if (!buf) {
 		printf("nvm_buf_alloc failed\n");
 		goto out;
 	}
 
-	for (i = 0; i < 4096 * 8; i++)
+	for (i = 0; i < size; i++)
 		((char *)buf)[i] = (i % 26 + 65 + offset);
 
 	clock_gettime(CLOCK_MONOTONIC, &begin);
-	res = nvm_vblk_write(blk, buf, 4096 * 8);
+	res = nvm_vblk_write(blk, buf, size);
 	printf("Channel %lu write return %lu, %d\n", channel, res, errno);
-	res = nvm_vblk_pwrite(blk, buf, 4096 * 8, 4096 * 8);
+	res = nvm_vblk_pwrite(blk, buf, size, size);
 	printf("Channel %lu write return %lu, %d\n", channel, res, errno);
 	clock_gettime(CLOCK_MONOTONIC, &finish);
 
