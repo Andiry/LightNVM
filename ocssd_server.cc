@@ -57,11 +57,6 @@ static int initialize_ocssd_manager()
 
 int main(int argc, char **argv)
 {
-	if (argc <= 1) {
-		printf("Usage: %s ip_address\n", argv[0]);
-		return 1;
-	}
-
 	int ret = 0;
 	ret = initialize_ocssd_manager();
 	if (ret) {
@@ -69,12 +64,12 @@ int main(int argc, char **argv)
 		return ret;
 	}
 
-	const char *ip = argv[1];
+	std::string ip = get_ip();
 
 	struct sockaddr_in address;
 	bzero(&address, sizeof(address));
 	address.sin_family = AF_INET;
-	inet_pton(AF_INET, ip, &address.sin_addr);
+	inet_pton(AF_INET, ip.c_str(), &address.sin_addr);
 	address.sin_port = htons(OCSSD_PORT);
 
 	int sock = socket(PF_INET, SOCK_STREAM, 0);

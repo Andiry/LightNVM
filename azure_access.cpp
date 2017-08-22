@@ -1,37 +1,5 @@
 #include "azure_config.h"
 
-std::string get_ip()
-{
-	struct ifaddrs *ifAddrStruct = NULL;
-	struct ifaddrs *ifa = NULL;
-	void * tmpAddrPtr = NULL;
-	std::string prefix("eno1");
-	std::string ret;
-
-	getifaddrs(&ifAddrStruct);
-
-	for (ifa = ifAddrStruct; ifa; ifa = ifa->ifa_next) {
-		if (!ifa->ifa_addr)
-			continue;
-
-		/* Only get IPv4 addr */
-		if (ifa->ifa_addr->sa_family == AF_INET) {
-			char addressBuffer[INET_ADDRSTRLEN];
-			tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
-			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-			if (!prefix.compare(0, prefix.size(), ifa->ifa_name)) {
-				ret = addressBuffer;
-				break;
-			}
-		}
-	}
-
-	if (ifAddrStruct)
-		freeifaddrs(ifAddrStruct);
-
-	return ret;
-}
-
 int azure_insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks)
 {
 	azure::storage::table_entity entity(U("OCSSD"), U(device));

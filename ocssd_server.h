@@ -1,6 +1,9 @@
 #pragma once
 
 #include <liblightnvm.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -10,6 +13,38 @@
 #include "azure_config.h"
 
 #define OCSSD_PORT	50001
+
+std::string get_ip()
+{
+	struct ifaddrs *ifAddrStruct = NULL;
+	struct ifaddrs *ifa = NULL;
+	void * tmpAddrPtr = NULL;
+	std::string prefix("eno1");
+	std::string ret;
+
+	getifaddrs(&ifAddrStruct);
+
+	for (ifa = ifAddrStruct; ifa; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr)
+			continue;
+
+		/* Only get IPv4 addr */
+		if (ifa->ifa_addr->sa_family == AF_INET) {
+			char addressBuffer[INET_ADDRSTRLEN];
+			tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+			if (!prefix.compare(0, prefix.size(), ifa->ifa_name)) {
+				ret = addressBuffer;
+				break;
+			}
+		}
+	}
+
+	if (ifAddrStruct)
+		freeifaddrs(ifAddrStruct);
+
+	return ret;
+}
 
 class MutexLock {
 public:

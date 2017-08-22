@@ -2,9 +2,6 @@
 
 #include <stdio.h>
 #include <sys/types.h>
-#include <ifaddrs.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <iostream>
 #include <string>
 #include <was/storage_account.h>
@@ -14,7 +11,6 @@ const utility::string_t AzureConnectionString(U("DefaultEndpointsProtocol=https;
 
 const utility::string_t OCSSDResourceTableName(U("OCSSDResource"));
 
-std::string get_ip();
 int azure_insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks);
 int azure_retrieve_entity();
 
