@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
+#include <boost/filesystem.hpp>
 
 #include "ocssd_server.h"
 
@@ -50,7 +51,17 @@ static int initialize_ocssd_manager()
 	if (!manager)
 		return -ENOMEM;
 
-	manager->add_ocssd("/dev/nvme0n1");
+	/* Check for existing OCSSDs */
+
+	for (int i = 0; i < 9; i++) {
+		std::string path = "/dev/nvme" + std::to_string(i) + "n1";
+
+		if (!boost::filesystem::exists(path))
+			continue;
+
+		manager->add_ocssd(path);
+	}
+
 	manager->publish_resource();
 	return 0;
 }
