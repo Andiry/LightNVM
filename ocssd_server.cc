@@ -73,8 +73,9 @@ static int initialize_ocssd_manager()
 		return -ENOMEM;
 
 	/* Check for existing OCSSDs */
+	/* nvme2n1 used as pblk */
 
-	for (int i = 0; i < 9; i++) {
+	for (int i = 0; i < 2; i++) {
 		std::string path = "/dev/nvme" + std::to_string(i) + "n1";
 
 		if (!boost::filesystem::exists(path))
