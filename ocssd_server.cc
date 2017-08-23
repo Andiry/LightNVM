@@ -10,9 +10,10 @@
 #include <signal.h>
 #include <boost/filesystem.hpp>
 
+#include "azure_config.h"
 #include "ocssd_server.h"
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 4096
 
 ocssd_manager *manager;
 
@@ -21,6 +22,27 @@ volatile sig_atomic_t stop;
 void interrupt(int signum) {
 	printf("%s\n", __func__);
 	stop = 1;
+}
+
+static int publish_resource(ocssd_manager *manager)
+{
+	const std::unordered_map<int, ocssd_unit *> & ocssds = manager->get_units();
+
+	for (auto pair : ocssds) {
+		ocssd_unit *unit = pair.second;
+		size_t shared = 0;
+		size_t exclusive = 0;
+		size_t blocks = 0;
+		int ret;
+
+		ret = unit->get_ocssd_stats(shared, exclusive, blocks);
+
+		if (!ret)
+			ret = azure_insert_entity(unit->get_desc(),
+						shared, exclusive, blocks);
+	}
+
+	return ocssds.size();
 }
 
 static int process_request(int connfd, char *buffer, int size)
@@ -38,7 +60,7 @@ static int process_request(int connfd, char *buffer, int size)
 
 	vssd->print();
 	manager->persist();
-	manager->publish_resource();
+	publish_resource(manager);
 
 	delete vssd;
 	delete request;
@@ -62,7 +84,7 @@ static int initialize_ocssd_manager()
 		manager->add_ocssd(path);
 	}
 
-	manager->publish_resource();
+	publish_resource(manager);
 	return 0;
 }
 

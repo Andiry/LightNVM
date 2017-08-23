@@ -10,8 +10,6 @@
 #include <string>
 #include <mutex>
 
-#include "azure_config.h"
-
 #define OCSSD_PORT	50001
 
 std::string get_ip()
@@ -624,7 +622,7 @@ class ocssd_unit {
 public:
 
 	ocssd_unit(const std::string &ip, const std::string &name)
-		: ip_(ip), name_(name), desc_(ip + "_" + name)
+		: ip_(ip), name_(name), desc_(ip + name)
 	{
 		std::replace(desc_.begin(), desc_.end(), '/', '_');
 		dev_ = nvm_dev_open(name.c_str());
@@ -648,8 +646,15 @@ public:
 		return name_;
 	}
 
+	const std::string & get_desc() {
+		return desc_;
+	}
+
 	size_t alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *request);
-	int publish_resource();
+	int get_ocssd_stats(
+		size_t &numSharedChannels,
+		size_t &numExclusiveChannels,
+		size_t &freeBlocks);
 
 private:
 
@@ -661,10 +666,6 @@ private:
 		virtual_ocssd *vssd, ocssd_alloc_request *request);
 	size_t alloc_exclusive_channels(virtual_ocssd_unit *vunit,
 		virtual_ocssd *vssd, ocssd_alloc_request *request);
-	int get_ocssd_stats(
-		size_t &numSharedChannels,
-		size_t &numExclusiveChannels,
-		size_t &freeBlocks);
 
 	std::string ip_;
 	std::string name_;
@@ -857,20 +858,6 @@ int ocssd_unit::get_ocssd_stats(
 	return 0;
 }
 
-int ocssd_unit::publish_resource()
-{
-	size_t shared = 0;
-	size_t exclusive = 0;
-	size_t blocks = 0;
-	int ret;
-
-	ret = get_ocssd_stats(shared, exclusive, blocks);
-
-	ret = azure_insert_entity(desc_, shared, exclusive, blocks);
-
-	return ret;
-}
-
 /* Represents all the OCSSDs on a single node */
 class ocssd_manager {
 public:
@@ -887,8 +874,8 @@ public:
 
 	int add_ocssd(const std::string &name);
 	size_t alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_request *request);
+	const std::unordered_map<int, ocssd_unit *> & get_units();
 	int persist() { return 0;}
-	int publish_resource();
 
 private:
 
@@ -931,14 +918,7 @@ size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_requ
 	return channels;
 }
 
-int ocssd_manager::publish_resource()
+const std::unordered_map<int, ocssd_unit *> & ocssd_manager::get_units()
 {
-	MutexLock lock(&mutex_);
-
-	for (auto pair : ocssds_) {
-		ocssd_unit *unit = pair.second;
-		unit->publish_resource();
-	}
-
-	return ocssds_.size();
+	return ocssds_;
 }
