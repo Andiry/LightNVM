@@ -47,3 +47,28 @@ int azure_retrieve_entity()
 
 	return 0;
 }
+
+int azure_delete_entities()
+{
+	azure::storage::table_query query;
+
+	query.set_filter_string(azure::storage::table_query::generate_filter_condition(U("PartitionKey"),
+				azure::storage::query_comparison_operator::equal, U("OCSSD")));
+
+	auto StorageAccount = azure::storage::cloud_storage_account::parse(AzureConnectionString);
+	auto TableClient = StorageAccount.create_cloud_table_client();
+	auto Table = TableClient.get_table_reference(OCSSDResourceTableName);
+	Table.create_if_not_exists();
+	azure::storage::table_query_iterator it = Table.execute_query(query);
+
+	azure::storage::table_query_iterator end_of_results;
+	for (; it != end_of_results; ++it) {
+		azure::storage::table_operation delete_operation =
+				azure::storage::table_operation::delete_entity(*it);
+
+		// Submit the delete operation to the Table service.
+		azure::storage::table_result delete_result = Table.execute(delete_operation);
+	}
+
+	return 0;
+}

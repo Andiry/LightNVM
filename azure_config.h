@@ -13,4 +13,5 @@ const utility::string_t OCSSDResourceTableName(U("OCSSDResource"));
 
 int azure_insert_entity(const std::string &device, size_t numShared, size_t numExclusive, size_t freeBlocks);
 int azure_retrieve_entity();
+int azure_delete_entities();
 
