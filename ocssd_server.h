@@ -7,7 +7,6 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
-#include <unordered_map>
 #include <string>
 #include <mutex>
 
@@ -869,29 +868,29 @@ public:
 	}
 
 	~ocssd_manager() {
-		for (auto pair : ocssds_)
-			delete pair.second;
+		for (auto unit : ocssds_)
+			delete unit;
 	}
 
 	int add_ocssd(const std::string &name);
 	size_t alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_request *request);
-	const std::unordered_map<int, ocssd_unit *> & get_units();
+	const std::vector<ocssd_unit *> & get_units();
 	int persist() { return 0;}
 
 private:
 
 	std::string ip_;
 	std::mutex mutex_;
-	std::unordered_map<int, ocssd_unit *> ocssds_;
+	std::vector<ocssd_unit *> ocssds_;
 	int count_;
 	uint32_t vssd_id_;
 };
 
 int ocssd_manager::add_ocssd(const std::string &name)
 {
-	ocssd_unit *unit = new ocssd_unit(ip_, name);
 	MutexLock lock(&mutex_);
-	ocssds_[count_] = unit;
+	ocssd_unit *unit = new ocssd_unit(ip_, name);
+	ocssds_.push_back(unit);
 	count_++;
 	return 0;
 }
@@ -902,8 +901,7 @@ size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_requ
 
 	MutexLock lock(&mutex_);
 
-	for (auto pair : ocssds_) {
-		ocssd_unit *unit = pair.second;
+	for (auto unit : ocssds_) {
 		size_t ret = unit->alloc_channels(vssd, request);
 
 		channels += ret;
@@ -919,7 +917,7 @@ size_t ocssd_manager::alloc_ocssd_resource(virtual_ocssd *vssd, ocssd_alloc_requ
 	return channels;
 }
 
-const std::unordered_map<int, ocssd_unit *> & ocssd_manager::get_units()
+const std::vector<ocssd_unit *> & ocssd_manager::get_units()
 {
 	return ocssds_;
 }

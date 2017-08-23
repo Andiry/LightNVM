@@ -26,10 +26,9 @@ void interrupt(int signum) {
 
 static int publish_resource(ocssd_manager *manager)
 {
-	const std::unordered_map<int, ocssd_unit *> & ocssds = manager->get_units();
+	const std::vector<ocssd_unit *> & ocssds = manager->get_units();
 
-	for (auto pair : ocssds) {
-		ocssd_unit *unit = pair.second;
+	for (auto unit : ocssds) {
 		size_t shared = 0;
 		size_t exclusive = 0;
 		size_t blocks = 0;
