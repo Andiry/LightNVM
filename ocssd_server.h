@@ -584,13 +584,15 @@ public:
 			return 0;
 
 		size_t allocated = 0;
+		size_t request_per_lun = request_blocks / num_luns_;
 
+		/* Distribute vblk across all the LUNs */
 		for (ocssd_lun * lun : luns_) {
 			if (lun->get_num_used_blocks() >= num_blocks_)
 				continue;
 
 			std::pair<size_t, size_t> block_units;
-			size_t ret = lun->alloc_blocks(block_units, request_blocks);
+			size_t ret = lun->alloc_blocks(block_units, request_per_lun);
 
 			alloc_units.push_back(std::pair<size_t, std::pair<size_t, size_t>>
 						(lun->get_lun_id(), block_units));
