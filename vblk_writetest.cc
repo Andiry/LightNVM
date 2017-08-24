@@ -3,6 +3,7 @@
 #include<stdint.h>
 #include<time.h>
 #include<string.h>
+#include<assert.h>
 #include<sys/time.h>
 #include<liblightnvm.h>
 #include<iostream>
@@ -78,6 +79,8 @@ static int test_vblk(struct nvm_dev *dev, FILE *output, const std::vector<int> &
 		printf("size %d, Write %lu ns, bandwidth %.2f MB/s\n", start_size, time1, (16 * 1e9 / time1));
 		fprintf(output, "%lu,%d,%.2f\n", channels.size(), start_size, (16 * 1e9 / time1));
 		start_size *= 2;
+		printf("pos write: %zu, end size: %d\n", nvm_vblk_get_pos_write(blk), end_size);
+		assert(nvm_vblk_get_pos_write(blk) == (size_t)end_size);
 	}
 
 	free(buf);
