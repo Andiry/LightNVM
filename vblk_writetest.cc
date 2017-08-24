@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
 	fprintf(output, "%s,%s,%s\n", "Channels", "Request size", "Bandwidth (MB/s)");
 
 	if (dev1.compare(argv[1]) == 0) {
-		/* Remove dead channels */
+		/* nvme0n1 only has channel 0, 1, 4, 5, 8, 9, 12, 13 working */
 		while (channel < geo->nchannels) {
 			if ((channel / 2) % 2 == 1) {
 				channel++;
