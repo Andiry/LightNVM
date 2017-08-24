@@ -63,7 +63,7 @@ static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels, int
 		for (i = 0; i < end_size / start_size; i++) {
 			res = nvm_vblk_read(blk, buf, start_size);
 			if (res < 0)
-				printf("Channel %lu read return %lu, %d\n", channels.size(), res, errno);
+				printf("Channel %lu read return %zd, %d\n", channels.size(), res, errno);
 		}
 		clock_gettime(CLOCK_MONOTONIC, &finish);
 

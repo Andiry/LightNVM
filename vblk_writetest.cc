@@ -70,7 +70,7 @@ static int test_vblk(struct nvm_dev *dev, FILE *output, const std::vector<int> &
 		for (i = 0; i < end_size / start_size; i++) {
 			res = nvm_vblk_write(blk, buf, start_size);
 			if (res < 0)
-				printf("Channel %lu write return %lu, %d\n", channels.size(), res, errno);
+				printf("Channel %lu write return %zd, %d\n", channels.size(), res, errno);
 		}
 		clock_gettime(CLOCK_MONOTONIC, &finish);
 
