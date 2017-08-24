@@ -18,7 +18,7 @@ enum BlkState {
 	kBad		= 0x8,
 };
 
-static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels, int offset)
+static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels)
 {
 	const struct nvm_geo *geo;
 	struct nvm_addr addr;
@@ -34,14 +34,17 @@ static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels, int
 
 	geo = nvm_dev_get_geo(dev);
 
-	end_size = geo->nplanes * geo->npages * geo->nsectors * geo->sector_nbytes;
+	end_size = geo->nplanes * geo->npages * geo->nsectors * geo->sector_nbytes * geo->nluns;
 	start_size = geo->nplanes * geo->nsectors * geo->sector_nbytes;
 
 	for (int channel : channels) {
-		addr.ppa = 0;
-		addr.g.ch = channel;
+		for (size_t lun = 0; lun < geo->nluns; lun++) {
+			addr.ppa = 0;
+			addr.g.ch = channel;
+			addr.g.lun = lun;
 
-		units.push_back(addr);
+			units.push_back(addr);
+		}
 	}
 
 	blk = nvm_vblk_alloc(dev, units.data(), units.size());
@@ -68,7 +71,7 @@ static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels, int
 		clock_gettime(CLOCK_MONOTONIC, &finish);
 
 		time1 = (finish.tv_sec * 1e9 + finish.tv_nsec) - (begin.tv_sec * 1e9 + begin.tv_nsec);
-		printf("size %d, Read %lu ns, bandwidth %.2f MB/s\n", start_size, time1, (16 * 1e9 / time1));
+		printf("size %d, Read %lu ns, bandwidth %.2f MB/s\n", start_size, time1, (end_size * 1e3 / time1));
 		start_size *= 2;
 	}
 
@@ -84,7 +87,6 @@ int main(int argc, char **argv) {
 	const struct nvm_geo *geo;
 	std::vector<int> channels;
 	std::string dev1("/dev/nvme0n1");
-	int d = 0;
 	size_t channel = 0;
 
 	if (argc < 2) {
@@ -109,15 +111,15 @@ int main(int argc, char **argv) {
 				continue;
 			}
 			channels.push_back(channel);
-			test_vblk(dev, channels, d);
 			channel++;
 		}
 	} else {
 		for (channel = 0; channel < geo->nchannels; channel++) {
 			channels.push_back(channel);
-			test_vblk(dev, channels, d);
 		}
 	}
+
+	test_vblk(dev, channels);
 
 	nvm_dev_close(dev);
 	return 0;
