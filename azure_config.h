@@ -7,7 +7,7 @@
 #include <was/storage_account.h>
 #include <was/table.h>
 
-const utility::string_t AzureConnectionString(U("DefaultEndpointsProtocol=https;AccountName=andiry;AccountKey=GEdd85kJS4sWnzfp+t8ikhsgbr1QPqZy0ZbocPI2fKGdiBhB8Agom9UwOW8OUvWpFq7bcOdnT34O/woiSY6W2w==;EndpointSuffix=core.windows.net"));
+const utility::string_t AzureConnectionString(U("DefaultEndpointsProtocol=https;AccountName=andiry;AccountKey=4BSC+b2+8OJJQJ4ehoa2deoCaUbxbVVaCPQOuWF3qFKcfA6dV099FgmsJb9sBwG/saXV7XDPQrxj+NiAZ7YDzg==;EndpointSuffix=core.windows.net"));
 
 const utility::string_t OCSSDResourceTableName(U("OCSSDResource"));
 
