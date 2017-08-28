@@ -10,8 +10,12 @@
 #include <signal.h>
 #include <sys/epoll.h>
 #include <boost/filesystem.hpp>
+#include <unordered_map>
+#include <memory>
 
 #include "azure_config.h"
+#include "threadpool.h"
+#include "ocssd_conn.h"
 #include "ocssd_server.h"
 
 #define MAX_FD 65536
@@ -144,6 +148,19 @@ int main(int argc, char **argv)
 		return ret;
 	}
 
+	addsig(SIGINT, interrupt, false);
+
+	threadpool<ocssd_conn>* pool = NULL;
+	try {
+		pool = new threadpool<ocssd_conn>;
+	} catch (std::exception &e) {
+		std::cout << e.what() << std::endl;
+		delete manager;
+		return -ENOMEM;
+	}
+
+	std::unordered_map<int, std::shared_ptr<ocssd_conn>> map;
+
 	std::string ip = get_ip();
 
 	struct sockaddr_in address;
@@ -164,8 +181,6 @@ int main(int argc, char **argv)
 	assert(ret != -1);
 
 	std::cout << "Listening on " << ip << ":" << OCSSD_PORT << "..." << std::endl;
-
-	addsig(SIGINT, interrupt, false);
 
 	epoll_event events[MAX_EVENT_NUMBER];
 	int epollfd = epoll_create(5);
@@ -190,7 +205,11 @@ int main(int argc, char **argv)
 				if (connfd < 0) {
 					printf("errno %d\n", errno);
 					continue;
-				} else {
+				}
+
+				addfd(epollfd, connfd, true);
+				map[connfd] = std::make_shared<ocssd_conn>(connfd, client);
+#if 0
 					char *buffer = new char[BUFFER_SIZE];
 					memset(buffer, 0, BUFFER_SIZE);
 					int received = 0;
@@ -199,11 +218,12 @@ int main(int argc, char **argv)
 					process_request(connfd, buffer, received);
 					delete[] buffer;
 					close(connfd);
-				}
+#endif
 			} else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
 				// Close conn
 			} else if (events[i].events & EPOLLIN) {
 				printf("Sock %d: read request\n", sockfd);
+				pool->append(map[sockfd]);
 			} else if (events[i].events & EPOLLOUT) {
 				printf("Sock %d: write request\n", sockfd);
 			}
@@ -211,9 +231,10 @@ int main(int argc, char **argv)
 	}
 
 	printf("Closing...\n");
-	manager->persist();
-	delete manager;
 	close(listenfd);
+	manager->persist();
+	delete pool;
+	delete manager;
 
 	return 0;
 }
