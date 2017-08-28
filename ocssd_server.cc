@@ -27,6 +27,17 @@ void interrupt(int signum) {
 	stop = 1;
 }
 
+static void addsig(int sig, void (*handler)(int), bool restart)
+{
+	struct sigaction action;
+	action.sa_handler = handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	if (restart)
+		action.sa_flags |= SA_RESTART;
+	sigaction(sig, &action, NULL);
+}
+
 static int setnonblocking(int fd)
 {
 	int old_option = fcntl(fd, F_GETFL);
@@ -154,11 +165,7 @@ int main(int argc, char **argv)
 
 	std::cout << "Listening on " << ip << ":" << OCSSD_PORT << "..." << std::endl;
 
-	struct sigaction action;
-	action.sa_handler = interrupt;
-	sigemptyset(&action.sa_mask);
-	action.sa_flags = 0;
-	sigaction(SIGINT, &action, NULL);
+	addsig(SIGINT, interrupt, false);
 
 	epoll_event events[MAX_EVENT_NUMBER];
 	int epollfd = epoll_create(5);
