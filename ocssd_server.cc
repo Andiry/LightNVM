@@ -155,18 +155,11 @@ int main(int argc, char **argv)
 
 				addfd(epollfd, connfd, true);
 				map[connfd] = std::make_shared<ocssd_conn>(connfd, client);
-#if 0
-					char *buffer = new char[BUFFER_SIZE];
-					memset(buffer, 0, BUFFER_SIZE);
-					int received = 0;
-					received = recv(connfd, buffer, BUFFER_SIZE - 1, 0);
-					printf("Received %d\n", received);
-					process_request(connfd, buffer, received);
-					delete[] buffer;
-					close(connfd);
-#endif
 			} else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
-				// Close conn
+				// Close connection
+				removefd(epollfd, sockfd);
+				map[sockfd] = NULL;
+				close(sockfd);
 			} else if (events[i].events & EPOLLIN) {
 				printf("Sock %d: read request\n", sockfd);
 				pool->append(map[sockfd]);
