@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
 	size_t channel = 0;
 
 	if (argc < 3) {
-		printf("usage: ./vblk_write $DEVICE, $OUTPUT_FILE\n");
+		printf("usage: ./vblk_write $DEVICE $OUTPUT_STAT_FILE\n");
 		return 1;
 	}
 

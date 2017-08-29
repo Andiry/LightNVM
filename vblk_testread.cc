@@ -111,15 +111,15 @@ int main(int argc, char **argv) {
 				continue;
 			}
 			channels.push_back(channel);
+			test_vblk(dev, channels);
 			channel++;
 		}
 	} else {
 		for (channel = 0; channel < geo->nchannels; channel++) {
 			channels.push_back(channel);
+			test_vblk(dev, channels);
 		}
 	}
-
-	test_vblk(dev, channels);
 
 	nvm_dev_close(dev);
 	return 0;
