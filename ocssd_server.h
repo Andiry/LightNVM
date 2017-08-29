@@ -127,21 +127,24 @@ const ssize_t REQUEST_ALLOC_SIZE = 20;
  * NUM_BLOCKS		4 bytes
  * SHARED		4 bytes
  * NUMA_ID		4 bytes
+ * REMOTE		4 bytes
  */
 class ocssd_alloc_request {
 public:
 
-	ocssd_alloc_request(size_t num_channels, size_t num_blocks, int shared, int numa_id)
+	ocssd_alloc_request(size_t num_channels, size_t num_blocks, int shared, int numa_id, int remote)
 		: num_channels_(num_channels),
 		num_blocks_(num_blocks),
 		shared_(shared),
-		numa_id_(numa_id) {}
+		numa_id_(numa_id),
+		remote_(remote) {}
 
-	ocssd_alloc_request(size_t num_channels, int numa_id)
+	ocssd_alloc_request(size_t num_channels, int numa_id, int remote)
 		: num_channels_(num_channels),
 		num_blocks_(0),
 		shared_(0),
-		numa_id_(numa_id) {}
+		numa_id_(numa_id),
+		remote_(remote) {}
 
 	ocssd_alloc_request(const char *buffer) {
 		uint32_t magic = deserialize_data(buffer);
@@ -154,9 +157,10 @@ public:
 		num_blocks_	= deserialize_data(buffer);
 		shared_		= deserialize_data(buffer);
 		numa_id_	= deserialize_data(buffer);
+		remote_		= deserialize_data(buffer);
 
-		printf("Request %u channels, %u blocks, shared %u, NUMA %u\n",
-			num_channels_, num_blocks_, shared_, numa_id_);
+		printf("Request %u channels, %u blocks, shared %u, NUMA %u, remote %u\n",
+			num_channels_, num_blocks_, shared_, numa_id_, remote);
 	}
 
 	size_t serialize(char *buffer) {
@@ -166,6 +170,7 @@ public:
 		serialize_data(buffer, num_blocks_);
 		serialize_data(buffer, shared_);
 		serialize_data(buffer, numa_id_);
+		serialize_data(buffer, remote_);
 		return buffer - start;
 	}
 
@@ -174,6 +179,7 @@ public:
 	void dec_channels(size_t channels) {num_channels_ -= channels;}
 	uint32_t get_shared() {return shared_;}
 	uint32_t get_numa_id() {return numa_id_;}
+	uint32_t get_remote() {return remote_;}
 
 private:
 
@@ -181,6 +187,7 @@ private:
 	uint32_t num_blocks_;
 	uint32_t shared_;
 	uint32_t numa_id_;
+	uint32_t remote_;
 };
 
 /*
