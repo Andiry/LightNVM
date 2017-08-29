@@ -8,7 +8,6 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
-#include <sys/epoll.h>
 #include <boost/filesystem.hpp>
 #include <unordered_map>
 #include <memory>
@@ -42,39 +41,6 @@ static void addsig(int sig, void (*handler)(int), bool restart)
 	sigaction(sig, &action, NULL);
 }
 
-static int setnonblocking(int fd)
-{
-	int old_option = fcntl(fd, F_GETFL);
-	int new_option = old_option | O_NONBLOCK;
-	fcntl(fd, F_SETFL, new_option);
-	return old_option;
-}
-
-static void addfd(int epollfd, int fd, bool one_shot)
-{
-	epoll_event event;
-	event.data.fd = fd;
-	event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-	if (one_shot)
-		event.events |= EPOLLONESHOT;
-	epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
-	setnonblocking(fd);
-}
-
-static void removefd(int epollfd, int fd)
-{
-	epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
-	close(fd);
-}
-
-static void modfd(int epollfd, int fd, int ev)
-{
-	epoll_event event;
-	event.data.fd = fd;
-	event.events = ev | EPOLLONESHOT | EPOLLET | EPOLLRDHUP;
-	epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
-}
-
 static int publish_resource(ocssd_manager *manager)
 {
 	const std::vector<ocssd_unit *> & ocssds = manager->get_units();
@@ -93,28 +59,6 @@ static int publish_resource(ocssd_manager *manager)
 	}
 
 	return ocssds.size();
-}
-
-static int process_request(int connfd, char *buffer, int size)
-{
-	ocssd_alloc_request *request = new ocssd_alloc_request(buffer);
-	virtual_ocssd *vssd = new virtual_ocssd();
-	size_t ret = 0;
-
-	ret = manager->alloc_ocssd_resource(vssd, request);
-
-	size_t len = vssd->serialize(buffer);
-
-	int sent = send(connfd, buffer, len, 0);
-	printf("Alloc %lu channels, len %lu, sent %d\n", ret, len, sent);
-
-	vssd->print();
-	manager->persist();
-	publish_resource(manager);
-
-	delete vssd;
-	delete request;
-	return 0;
 }
 
 static int initialize_ocssd_manager()
@@ -185,6 +129,8 @@ int main(int argc, char **argv)
 	epoll_event events[MAX_EVENT_NUMBER];
 	int epollfd = epoll_create(5);
 	addfd(epollfd, listenfd, false);
+	ocssd_conn::epollfd = epollfd;
+	ocssd_conn::manager = manager;
 
 	while (!stop) {
 		int number = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
@@ -226,6 +172,7 @@ int main(int argc, char **argv)
 				pool->append(map[sockfd]);
 			} else if (events[i].events & EPOLLOUT) {
 				printf("Sock %d: write request\n", sockfd);
+				pool->append(map[sockfd]);
 			}
 		}
 	}

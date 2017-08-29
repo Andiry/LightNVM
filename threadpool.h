@@ -12,7 +12,7 @@
 template<typename T>
 class threadpool {
 public:
-	threadpool(int thread_number = 8, int max_requests = 10000);
+	threadpool(int thread_number = 8, size_t max_requests = 10000);
 	~threadpool();
 	bool append(const std::shared_ptr<T>& request);
 
@@ -21,7 +21,7 @@ private:
 	void run();
 
 	int m_thread_number;
-	int m_max_requests;
+	size_t m_max_requests;
 	pthread_t * m_threads;
 	std::deque<std::shared_ptr<T>> m_workqueue;
 	locker m_queuelocker;
@@ -30,7 +30,7 @@ private:
 };
 
 template<typename T>
-threadpool<T>::threadpool(int thread_number, int max_requests) :
+threadpool<T>::threadpool(int thread_number, size_t max_requests) :
 	m_thread_number(thread_number), m_max_requests(max_requests),
 	m_threads(NULL), m_stop(false)
 {

@@ -4,6 +4,9 @@
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <iostream>
 #include <algorithm>
 #include <vector>
@@ -11,6 +14,39 @@
 #include <mutex>
 
 #define OCSSD_PORT	50001
+
+static int setnonblocking(int fd)
+{
+	int old_option = fcntl(fd, F_GETFL);
+	int new_option = old_option | O_NONBLOCK;
+	fcntl(fd, F_SETFL, new_option);
+	return old_option;
+}
+
+void addfd(int epollfd, int fd, bool one_shot)
+{
+	epoll_event event;
+	event.data.fd = fd;
+	event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+	if (one_shot)
+		event.events |= EPOLLONESHOT;
+	epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
+	setnonblocking(fd);
+}
+
+void removefd(int epollfd, int fd)
+{
+	epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
+	close(fd);
+}
+
+void modfd(int epollfd, int fd, int ev)
+{
+	epoll_event event;
+	event.data.fd = fd;
+	event.events = ev | EPOLLONESHOT | EPOLLET | EPOLLRDHUP;
+	epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
+}
 
 std::string get_ip()
 {
@@ -61,6 +97,12 @@ private:
 };
 
 
+static inline uint32_t get_header(const char *buffer) {
+	uint32_t data;
+	data = *(uint32_t *)buffer;
+	return data;
+}
+
 static inline void serialize_data(char *&buffer, uint32_t data) {
 	char *&p = buffer;
 	*(uint32_t *)p = data;
@@ -75,7 +117,8 @@ static inline uint32_t deserialize_data(const char *&buffer) {
 	return data;
 }
 
-#define REQUEST_MAGIC 0x6501
+const uint32_t REQUEST_MAGIC = 0x6501;
+const ssize_t REQUEST_ALLOC_SIZE = 20;
 
 /*
  * Request serialize format:
@@ -432,7 +475,7 @@ private:
 	std::vector<virtual_ocssd_unit *> units_;
 };
 
-#define SERIALIZE_MAGIC 0x6502
+const uint32_t SERIALIZE_MAGIC = 0x6502;
 
 size_t virtual_ocssd::serialize(char *buffer) const {
 	char *p = buffer;
