@@ -22,7 +22,7 @@ enum REQUEST_CODE {
 class ocssd_conn {
 public:
 	ocssd_conn(int connfd, const struct sockaddr_in &client);
-	~ocssd_conn(){printf("%s\n", __func__);}
+	~ocssd_conn();
 
 	void close_conn(bool real_close = true);
 	void process();
@@ -48,14 +48,25 @@ private:
 	int read_start_;
 	int read_end_;
 	char read_buf_[READ_BUFFER_SIZE];
+
+	/* Keep a virtual ssd here for remote access */
+	int remote_vssd_;
+	virtual_ocssd *vssd_;
 };
 
 ocssd_conn::ocssd_conn(int connfd, const struct sockaddr_in &client)
 	: connfd_(connfd), ipaddr_(inet_ntoa(client.sin_addr)),
-	read_start_(0), read_end_(0)
+	read_start_(0), read_end_(0), remote_vssd_(0), vssd_(NULL)
 {
 	std::cout << "New connection: conn " << connfd_
 		<< ", IP addr " << ipaddr_ << std::endl;
+}
+
+ocssd_conn::~ocssd_conn()
+{
+	printf("%s\n", __func__);
+	if (remote_vssd_)
+		delete vssd_;
 }
 
 void ocssd_conn::close_conn(bool real_close)
@@ -187,6 +198,19 @@ int ocssd_conn::process_alloc_request(char *buffer)
 
 	ret = manager->alloc_ocssd_resource(vssd, request);
 
+	if (!ret) {
+		printf("No resource to allocate.\n");
+		delete vssd;
+		delete request;
+		return -1;
+	}
+
+	if (request->get_remote()) {
+		printf("Remote VSSD request.\n");
+		remote_vssd_ = 1;
+		vssd_ = vssd;
+	}
+
 	size_t len = vssd->serialize(buffer);
 
 	int sent = send(connfd_, buffer, len, 0);
@@ -196,7 +220,9 @@ int ocssd_conn::process_alloc_request(char *buffer)
 	manager->persist();
 	publish_resource();
 
-	delete vssd;
+	if (remote_vssd_ == 0)
+		delete vssd;
+
 	delete request;
 	return 0;
 }

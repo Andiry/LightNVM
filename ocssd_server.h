@@ -160,7 +160,7 @@ public:
 		remote_		= deserialize_data(buffer);
 
 		printf("Request %u channels, %u blocks, shared %u, NUMA %u, remote %u\n",
-			num_channels_, num_blocks_, shared_, numa_id_, remote);
+			num_channels_, num_blocks_, shared_, numa_id_, remote_);
 	}
 
 	size_t serialize(char *buffer) {
