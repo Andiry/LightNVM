@@ -119,13 +119,13 @@ static inline uint32_t get_header(const char *buffer) {
 	return data;
 }
 
-static inline void serialize_data(char *&buffer, uint32_t data) {
+static inline void serialize_data4(char *&buffer, uint32_t data) {
 	char *&p = buffer;
 	*(uint32_t *)p = data;
 	p += sizeof(uint32_t);
 }
 
-static inline uint32_t deserialize_data(const char *&buffer) {
+static inline uint32_t deserialize_data4(const char *&buffer) {
 	uint32_t data;
 	const char *&p = buffer;
 	data = *(uint32_t *)p;
@@ -133,8 +133,84 @@ static inline uint32_t deserialize_data(const char *&buffer) {
 	return data;
 }
 
+static inline void serialize_data8(char *&buffer, uint64_t data) {
+	char *&p = buffer;
+	*(uint64_t *)p = data;
+	p += sizeof(uint64_t);
+}
+
+static inline uint64_t deserialize_data8(const char *&buffer) {
+	uint64_t data;
+	const char *&p = buffer;
+	data = *(uint64_t *)p;
+	p += sizeof(uint64_t);
+	return data;
+}
+
+
+/* ====================== OCSSD structs ======================== */
+
+const uint32_t READ_BLOCK_MAGIC = 0x6401;
+const uint32_t WRITE_BLOCK_MAGIC = 0x6402;
+const ssize_t REQUEST_IO_SIZE = 24;
+
+/*
+ * Request serialize format:
+ * BLOCK_MAGIC		4 bytes
+ * BLOCK_INDEX		4 bytes
+ * COUNT		8 bytes
+ * OFFSET		8 bytes
+ */
+class ocssd_io_request {
+public:
+
+	ocssd_io_request(uint32_t block_index, size_t count, size_t offset)
+		: block_index_(block_index),
+		count_(count),
+		offset_(offset) {}
+
+	ocssd_io_request(const char *buffer) {
+		uint32_t magic = deserialize_data4(buffer);
+		if (magic != READ_BLOCK_MAGIC && magic != WRITE_BLOCK_MAGIC) {
+			printf("Incorrect MAGIC: %x\n", magic);
+			throw std::runtime_error("Error: init request failed\n");
+		}
+
+		block_index_	= deserialize_data4(buffer);
+		count_		= deserialize_data8(buffer);
+		offset_		= deserialize_data8(buffer);
+
+		printf("%s request: block %d, count %lu, offset %lu\n",
+			magic == READ_BLOCK_MAGIC ? "Read" : "Write",
+			block_index_, count_, offset_);
+	}
+
+	size_t serialize(char *buffer, int read) {
+		char *start = buffer;
+		if (read)
+			serialize_data4(buffer, READ_BLOCK_MAGIC);
+		else
+			serialize_data4(buffer, WRITE_BLOCK_MAGIC);
+
+		serialize_data4(buffer, block_index_);
+		serialize_data8(buffer, count_);
+		serialize_data8(buffer, offset_);
+		return buffer - start;
+	}
+
+	uint32_t get_block_index() {return block_index_;}
+	size_t get_count() {return count_;}
+	size_t get_offset() {return offset_;}
+
+private:
+
+	uint32_t block_index_;
+	size_t count_;
+	size_t offset_;
+};
+
 const uint32_t REQUEST_MAGIC = 0x6501;
-const ssize_t REQUEST_ALLOC_SIZE = 20;
+const ssize_t REQUEST_ALLOC_SIZE = 24;
 
 /*
  * Request serialize format:
@@ -163,17 +239,17 @@ public:
 		remote_(remote) {}
 
 	ocssd_alloc_request(const char *buffer) {
-		uint32_t magic = deserialize_data(buffer);
+		uint32_t magic = deserialize_data4(buffer);
 		if (magic != REQUEST_MAGIC) {
 			printf("Incorrect MAGIC: %x\n", magic);
 			throw std::runtime_error("Error: init request failed\n");
 		}
 
-		num_channels_	= deserialize_data(buffer);
-		num_blocks_	= deserialize_data(buffer);
-		shared_		= deserialize_data(buffer);
-		numa_id_	= deserialize_data(buffer);
-		remote_		= deserialize_data(buffer);
+		num_channels_	= deserialize_data4(buffer);
+		num_blocks_	= deserialize_data4(buffer);
+		shared_		= deserialize_data4(buffer);
+		numa_id_	= deserialize_data4(buffer);
+		remote_		= deserialize_data4(buffer);
 
 		printf("Request %u channels, %u blocks, shared %u, NUMA %u, remote %u\n",
 			num_channels_, num_blocks_, shared_, numa_id_, remote_);
@@ -181,12 +257,12 @@ public:
 
 	size_t serialize(char *buffer) {
 		char *start = buffer;
-		serialize_data(buffer, REQUEST_MAGIC);
-		serialize_data(buffer, num_channels_);
-		serialize_data(buffer, num_blocks_);
-		serialize_data(buffer, shared_);
-		serialize_data(buffer, numa_id_);
-		serialize_data(buffer, remote_);
+		serialize_data4(buffer, REQUEST_MAGIC);
+		serialize_data4(buffer, num_channels_);
+		serialize_data4(buffer, num_blocks_);
+		serialize_data4(buffer, shared_);
+		serialize_data4(buffer, numa_id_);
+		serialize_data4(buffer, remote_);
 		return buffer - start;
 	}
 
@@ -253,9 +329,9 @@ size_t virtual_ocssd_lun::serialize(char *&buffer) const {
 	char *start = buffer;
 	char *&p = buffer;
 
-	serialize_data(p, lun_id_);
-	serialize_data(p, block_start_);
-	serialize_data(p, num_blocks_);
+	serialize_data4(p, lun_id_);
+	serialize_data4(p, block_start_);
+	serialize_data4(p, num_blocks_);
 
 	return p - start;
 }
@@ -263,9 +339,9 @@ size_t virtual_ocssd_lun::serialize(char *&buffer) const {
 virtual_ocssd_lun::virtual_ocssd_lun(const char *&buffer) {
 	const char *&p = buffer;
 
-	lun_id_ = deserialize_data(p);
-	block_start_ = deserialize_data(p);
-	num_blocks_ = deserialize_data(p);
+	lun_id_ = deserialize_data4(p);
+	block_start_ = deserialize_data4(p);
+	num_blocks_ = deserialize_data4(p);
 
 	std::cout << "LUN " << lun_id_ << ": "
 		  << "block start " << block_start_ << ", "
@@ -352,10 +428,10 @@ size_t virtual_ocssd_channel::serialize(char *&buffer) const {
 	char *start = buffer;
 	char *&p = buffer;
 
-	serialize_data(p, channel_id_);
-	serialize_data(p, shared_);
-	serialize_data(p, total_blocks_);
-	serialize_data(p, num_luns_);
+	serialize_data4(p, channel_id_);
+	serialize_data4(p, shared_);
+	serialize_data4(p, total_blocks_);
+	serialize_data4(p, num_luns_);
 
 	if (shared_ == 1) {
 		for (const virtual_ocssd_lun * lun : luns_)
@@ -369,10 +445,10 @@ size_t virtual_ocssd_channel::deserialize(const char *&buffer) {
 	const char *start = buffer;
 	const char *&p = buffer;
 
-	channel_id_ = deserialize_data(p);
-	shared_ = deserialize_data(p);
-	total_blocks_ = deserialize_data(p);
-	num_luns_ = deserialize_data(p);
+	channel_id_ = deserialize_data4(p);
+	shared_ = deserialize_data4(p);
+	total_blocks_ = deserialize_data4(p);
+	num_luns_ = deserialize_data4(p);
 
 	std::cout << "Channel " << channel_id_ << ": "
 		  << "shared " << shared_ << ", "
@@ -432,12 +508,12 @@ size_t virtual_ocssd_unit::serialize(char *&buffer) const {
 	char *&p = buffer;
 	size_t len = dev_name_.length() + 1;
 
-	serialize_data(p, len);
+	serialize_data4(p, len);
 	memcpy(p, dev_name_.c_str(), len);
 	len = (len + 3) / 4 * 4;
 	p += len;
 
-	serialize_data(p, channels_.size());
+	serialize_data4(p, channels_.size());
 
 	for (const virtual_ocssd_channel *channel : channels_)
 		channel->serialize(p);
@@ -448,14 +524,14 @@ size_t virtual_ocssd_unit::serialize(char *&buffer) const {
 size_t virtual_ocssd_unit::deserialize(const char *&buffer) {
 	const char *start = buffer;
 	const char *&p = buffer;
-	uint32_t name_len = deserialize_data(p);
+	uint32_t name_len = deserialize_data4(p);
 	const char *temp = p;
 
 	dev_name_ = temp;
 	name_len = (name_len + 3) / 4 * 4;
 	p += name_len;
 
-	uint32_t num_channel = deserialize_data(p);
+	uint32_t num_channel = deserialize_data4(p);
 	std::cout<< "Device " << dev_name_ << ": "
 		 << num_channel << " channels" << std::endl;
 
@@ -503,9 +579,9 @@ const uint32_t SERIALIZE_MAGIC = 0x6502;
 size_t virtual_ocssd::serialize(char *buffer) const {
 	char *p = buffer;
 
-	serialize_data(p, SERIALIZE_MAGIC);
-	serialize_data(p, id_);
-	serialize_data(p, units_.size());
+	serialize_data4(p, SERIALIZE_MAGIC);
+	serialize_data4(p, id_);
+	serialize_data4(p, units_.size());
 
 	for (const virtual_ocssd_unit *unit : units_)
 		unit->serialize(p);
@@ -518,14 +594,14 @@ size_t virtual_ocssd::deserialize(const char *buffer) {
 	uint32_t magic;
 	uint32_t num_unit = 0;
 
-	magic = deserialize_data(p);
+	magic = deserialize_data4(p);
 	if (magic != SERIALIZE_MAGIC) {
 		printf("Incorrect MAGIC: %x\n", magic);
 		return 0;
 	}
 
-	id_ = deserialize_data(p);
-	num_unit = deserialize_data(p);
+	id_ = deserialize_data4(p);
+	num_unit = deserialize_data4(p);
 	printf("ID %u, %u Devices\n", id_, num_unit);
 
 	for (uint32_t i = 0; i < num_unit; i++) {

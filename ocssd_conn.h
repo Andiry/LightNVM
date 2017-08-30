@@ -13,10 +13,13 @@
 #include "ocssd_server.h"
 
 #define READ_BUFFER_SIZE 4096
+#define DATA_BUFFER_SIZE (16 * 1024 * 1024)
 
 enum REQUEST_CODE {
 	NO_REQUEST = 0,
 	ALLOC_VSSD_REQUEST,
+	READ_BLOCK_REQUEST,
+	WRITE_BLOCK_REQUEST,
 };
 
 class ocssd_conn {
@@ -40,9 +43,12 @@ private:
 	bool process_write(REQUEST_CODE code);
 	REQUEST_CODE parse_buffer(char *temp_buf, int size);
 	int process_alloc_request(char *buffer);
+	int process_read_request(char *buffer);
+	int process_write_request(char *buffer);
 	int publish_resource();
 	int initialize_remote_vssd(virtual_ocssd *vssd);
 	int initialize_vssd_blocks(const virtual_ocssd_unit * vunit);
+	struct nvm_vblk *GetBlockPointer(size_t blk_idx) {return blks_array_[blk_idx];}
 
 	std::mutex mutex_;
 	int connfd_;
@@ -59,11 +65,12 @@ private:
 	size_t num_blks_;
 	size_t blk_size_;
 	std::vector<struct nvm_vblk *> blks_array_;		/* Real blocks */
+	char* data_buf_;
 };
 
 ocssd_conn::ocssd_conn(int connfd, const struct sockaddr_in &client)
 	: connfd_(connfd), ipaddr_(inet_ntoa(client.sin_addr)),
-	read_start_(0), read_end_(0), remote_vssd_(0), dev_(NULL)
+	read_start_(0), read_end_(0), remote_vssd_(0), dev_(NULL), data_buf_(NULL)
 {
 	std::cout << "New connection: conn " << connfd_
 		<< ", IP addr " << ipaddr_ << std::endl;
@@ -76,6 +83,7 @@ ocssd_conn::~ocssd_conn()
 		nvm_dev_close(dev_);
 		for (auto &vblk : blks_array_)
 			nvm_vblk_free(vblk);
+		free(data_buf_);
 	}
 }
 
@@ -149,6 +157,22 @@ REQUEST_CODE ocssd_conn::parse_buffer(char *temp_buf, int size)
 		if (read_start_ == read_end_)
 			read_start_ = read_end_ = 0;
 		break;
+	case READ_BLOCK_MAGIC:
+		if (size < REQUEST_IO_SIZE)
+			break;
+		ret = READ_BLOCK_REQUEST;
+		read_start_ += REQUEST_IO_SIZE;
+		if (read_start_ == read_end_)
+			read_start_ = read_end_ = 0;
+		break;
+	case WRITE_BLOCK_MAGIC:
+		if (size < REQUEST_IO_SIZE)
+			break;
+		ret = WRITE_BLOCK_REQUEST;
+		read_start_ += REQUEST_IO_SIZE;
+		if (read_start_ == read_end_)
+			read_start_ = read_end_ = 0;
+		break;
 	default:
 		break;
 	}
@@ -172,6 +196,12 @@ REQUEST_CODE ocssd_conn::process_read()
 	switch (code) {
 	case ALLOC_VSSD_REQUEST:
 		process_alloc_request(temp_buf);
+		break;
+	case READ_BLOCK_REQUEST:
+		process_read_request(temp_buf);
+		break;
+	case WRITE_BLOCK_REQUEST:
+		process_write_request(temp_buf);
 		break;
 	default:
 		break;
@@ -208,6 +238,10 @@ int ocssd_conn::initialize_vssd_blocks(const virtual_ocssd_unit * vunit)
 
 	vunit->generate_units(curr_blocks);
 	std::cout << __func__ << ": OCSSD blocks " << curr_blocks.size() << std::endl;
+
+	data_buf_ = (char *)malloc(DATA_BUFFER_SIZE);
+	if (!data_buf_)
+		return -ENOMEM;
 
 	while (true) {
 		std::vector<struct ::nvm_addr> addrs;
@@ -250,6 +284,7 @@ int ocssd_conn::initialize_vssd_blocks(const virtual_ocssd_unit * vunit)
 			std::cout << __func__ << "FAILED: nvm_vblk_alloc" << std::endl;
 			for (auto &vblk : blks_array_)
 				nvm_vblk_free(vblk);
+			free(data_buf_);
 			return -ENOMEM;
 		}
 
@@ -296,6 +331,8 @@ int ocssd_conn::process_alloc_request(char *buffer)
 	virtual_ocssd *vssd = new virtual_ocssd();
 	size_t ret = 0;
 
+	MutexLock lock(&mutex_);
+
 	ret = manager->alloc_ocssd_resource(vssd, request);
 
 	if (!ret || vssd->get_num_units() < 1) {
@@ -321,6 +358,56 @@ int ocssd_conn::process_alloc_request(char *buffer)
 	publish_resource();
 
 	delete vssd;
+	delete request;
+	return 0;
+}
+
+int ocssd_conn::process_read_request(char *buffer)
+{
+	ocssd_io_request *request = new ocssd_io_request(buffer);
+	int idx = request->get_block_index();
+	size_t count = request->get_count();
+	size_t offset = request->get_offset();
+	size_t ret = 0;
+
+	MutexLock lock(&mutex_);
+
+	struct nvm_vblk *blk = GetBlockPointer(idx);
+	if (!blk) {
+		//FIXME: send error
+		return -1;
+	}
+
+	ret = nvm_vblk_pread(blk, data_buf_, count, offset);
+	int sent = send(connfd_, data_buf_, ret, 0);
+
+	delete request;
+	return 0;
+}
+
+int ocssd_conn::process_write_request(char *buffer)
+{
+	ocssd_io_request *request = new ocssd_io_request(buffer);
+	int idx = request->get_block_index();
+	size_t count = request->get_count();
+	size_t received = 0;
+	size_t ret = 0;
+
+	MutexLock lock(&mutex_);
+
+	struct nvm_vblk *blk = GetBlockPointer(idx);
+	if (!blk) {
+		//FIXME: send error
+		return -1;
+	}
+
+	while ((ret = recv(connfd_, data_buf_ + received,
+					count - received, 0)) > 0)
+		received += ret;
+
+	ret = nvm_vblk_write(blk, data_buf_, received);
+	int sent = send(connfd_, data_buf_, ret, 0);
+
 	delete request;
 	return 0;
 }
