@@ -80,6 +80,22 @@ std::string get_ip()
 	return ret;
 }
 
+void generate_addr(std::vector<struct nvm_addr> &addrs,
+	std::vector<uint32_t> &curr_blocks,
+	uint32_t channel_id,
+	uint32_t lun_id,
+	int i)
+{
+	struct nvm_addr addr;
+
+	addr.ppa = 0;
+	addr.g.ch = channel_id;
+	addr.g.lun = lun_id;
+	addr.g.blk = curr_blocks[i];
+	curr_blocks[i]++;
+	addrs.push_back(addr);
+}
+
 class MutexLock {
 public:
 	explicit MutexLock(std::mutex *mutex)
@@ -297,7 +313,7 @@ public:
 			delete vlun;
 	}
 
-	void generate_units(std::vector<int> &units);
+	void generate_units(std::vector<uint32_t> &units);
 	size_t serialize(char *&buffer) const;
 	size_t deserialize(const char *&buffer);
 
@@ -320,7 +336,7 @@ private:
 	std::vector<virtual_ocssd_lun *> luns_;
 };
 
-void virtual_ocssd_channel::generate_units(std::vector<int> &units)
+void virtual_ocssd_channel::generate_units(std::vector<uint32_t> &units)
 {
 	if (shared_ == 1) {
 		for (virtual_ocssd_lun * lun : luns_)
@@ -391,7 +407,7 @@ public:
 			delete channel;
 	}
 
-	void generate_units(std::vector<int> &units) const;
+	void generate_units(std::vector<uint32_t> &units) const;
 	size_t serialize(char *&buffer) const;
 	size_t deserialize(const char *&buffer);
 	void add(virtual_ocssd_channel *channel) {channels_.push_back(channel);}
@@ -405,7 +421,7 @@ private:
 	std::vector<virtual_ocssd_channel *> channels_;
 };
 
-void virtual_ocssd_unit::generate_units(std::vector<int> &units) const
+void virtual_ocssd_unit::generate_units(std::vector<uint32_t> &units) const
 {
 	for (virtual_ocssd_channel *channel : channels_)
 		channel->generate_units(units);

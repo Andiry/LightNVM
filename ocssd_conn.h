@@ -41,6 +41,8 @@ private:
 	REQUEST_CODE parse_buffer(char *temp_buf, int size);
 	int process_alloc_request(char *buffer);
 	int publish_resource();
+	int initialize_remote_vssd(virtual_ocssd *vssd);
+	int initialize_vssd_blocks(const virtual_ocssd_unit * vunit);
 
 	std::mutex mutex_;
 	int connfd_;
@@ -51,12 +53,17 @@ private:
 
 	/* Keep a virtual ssd here for remote access */
 	int remote_vssd_;
-	virtual_ocssd *vssd_;
+	struct nvm_dev *dev_;
+	const struct nvm_geo *geo_;
+
+	size_t num_blks_;
+	size_t blk_size_;
+	std::vector<struct nvm_vblk *> blks_array_;		/* Real blocks */
 };
 
 ocssd_conn::ocssd_conn(int connfd, const struct sockaddr_in &client)
 	: connfd_(connfd), ipaddr_(inet_ntoa(client.sin_addr)),
-	read_start_(0), read_end_(0), remote_vssd_(0), vssd_(NULL)
+	read_start_(0), read_end_(0), remote_vssd_(0), dev_(NULL)
 {
 	std::cout << "New connection: conn " << connfd_
 		<< ", IP addr " << ipaddr_ << std::endl;
@@ -65,8 +72,11 @@ ocssd_conn::ocssd_conn(int connfd, const struct sockaddr_in &client)
 ocssd_conn::~ocssd_conn()
 {
 	printf("%s\n", __func__);
-	if (remote_vssd_)
-		delete vssd_;
+	if (remote_vssd_) {
+		nvm_dev_close(dev_);
+		for (auto &vblk : blks_array_)
+			nvm_vblk_free(vblk);
+	}
 }
 
 void ocssd_conn::close_conn(bool real_close)
@@ -190,6 +200,96 @@ int ocssd_conn::publish_resource()
 	return ocssds.size();
 }
 
+int ocssd_conn::initialize_vssd_blocks(const virtual_ocssd_unit * vunit)
+{
+	std::vector<uint32_t> curr_blocks;
+	int count = 0;
+	int i = 0;
+
+	vunit->generate_units(curr_blocks);
+	std::cout << __func__ << ": OCSSD blocks " << curr_blocks.size() << std::endl;
+
+	while (true) {
+		std::vector<struct ::nvm_addr> addrs;
+		i = 0;
+
+		for (const virtual_ocssd_channel *vchannel : vunit->get_channels()) {
+			uint32_t channel_id = vchannel->get_channel_id();
+			uint32_t num_luns = vchannel->get_num_luns();
+			uint32_t lun_id;
+			uint32_t block_end;
+
+			if (vchannel->is_shared()) {
+				for (const virtual_ocssd_lun * lun : vchannel->get_luns()) {
+					lun_id = lun->get_lun_id();
+					block_end = lun->get_block_start() + lun->get_num_blocks();
+
+					if (curr_blocks[i] < block_end)
+						generate_addr(addrs, curr_blocks, channel_id, lun_id, i);
+					i++;
+				}
+			} else {
+				for (lun_id = 0; lun_id < num_luns; lun_id++) {
+					block_end = geo_->nblocks;
+
+					if (curr_blocks[i] < block_end)
+						generate_addr(addrs, curr_blocks, channel_id, lun_id, i);
+					i++;
+				}
+			}
+		}
+
+		if (addrs.size() == 0)
+			break;
+
+		struct nvm_vblk *blk;
+
+		blk = nvm_vblk_alloc(dev_, addrs.data(), addrs.size());
+
+		if (!blk) {
+			std::cout << __func__ << "FAILED: nvm_vblk_alloc" << std::endl;
+			for (auto &vblk : blks_array_)
+				nvm_vblk_free(vblk);
+			return -ENOMEM;
+		}
+
+		blks_array_.push_back(blk);
+		/* FIXME: Assume each block has equal size */
+		blk_size_ = nvm_vblk_get_nbytes(blk);
+		count++;
+	}
+
+	std::cout << __func__ << ": " << count << " vblks" << std::endl;
+	num_blks_ = count;
+
+	// FIXME: Restore vblk states
+
+	return 0;
+}
+
+int ocssd_conn::initialize_remote_vssd(virtual_ocssd *vssd)
+{
+	//FIXME: Use only one unit now
+	const virtual_ocssd_unit *vunit = vssd->get_unit(0);
+
+	std::string dev_path = vunit->get_dev_name();
+	dev_ = nvm_dev_open(dev_path.c_str());
+	if (!dev_) {
+		std::cout << __func__ << ": FAILED: opening device" << std::endl;
+		throw std::runtime_error("FAILED: opening device");
+		return -EIO;
+	}
+
+	geo_ = nvm_dev_get_geo(dev_);
+
+	initialize_vssd_blocks(vunit);
+
+	std::cout << __func__ << ": " << dev_path << std::endl;
+
+	return 0;
+}
+
+
 int ocssd_conn::process_alloc_request(char *buffer)
 {
 	ocssd_alloc_request *request = new ocssd_alloc_request(buffer);
@@ -198,7 +298,7 @@ int ocssd_conn::process_alloc_request(char *buffer)
 
 	ret = manager->alloc_ocssd_resource(vssd, request);
 
-	if (!ret) {
+	if (!ret || vssd->get_num_units() < 1) {
 		printf("No resource to allocate.\n");
 		delete vssd;
 		delete request;
@@ -208,7 +308,7 @@ int ocssd_conn::process_alloc_request(char *buffer)
 	if (request->get_remote()) {
 		printf("Remote VSSD request.\n");
 		remote_vssd_ = 1;
-		vssd_ = vssd;
+		initialize_remote_vssd(vssd);
 	}
 
 	size_t len = vssd->serialize(buffer);
@@ -220,9 +320,7 @@ int ocssd_conn::process_alloc_request(char *buffer)
 	manager->persist();
 	publish_resource();
 
-	if (remote_vssd_ == 0)
-		delete vssd;
-
+	delete vssd;
 	delete request;
 	return 0;
 }
