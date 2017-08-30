@@ -95,8 +95,15 @@ static int test_read_block(int sock, uint32_t block_idx, size_t count, size_t of
 	char* data_buf = (char *)malloc(count);
 
 	memset(data_buf, 'b', count);
-	sent = recv(sock, data_buf, count, 0);
-	printf("%s: read size %lu, recv %d, %c %c\n", __func__, size, sent,
+	size_t received = 0;
+	int ret;
+	while ((ret = recv(sock, data_buf + received, count - received, 0)) > 0) {
+		received += ret;
+		if (received >= count)
+		break;
+	}
+
+	printf("%s: read size %lu, recv %lu, %c %c\n", __func__, size, received,
 			data_buf[0], data_buf[count - 1]);
 
 	free(data_buf);
@@ -120,8 +127,8 @@ static int test_remote_ocssd(int sock)
 	vssd.deserialize(buffer);
 
 	test_erase_block(sock, 0);
-	test_write_block(sock, 0, 32768);
-	test_read_block(sock, 0, 32768, 0);
+	test_write_block(sock, 0, 1048576);
+	test_read_block(sock, 0, 1048576, 0);
 
 	return 0;
 }
