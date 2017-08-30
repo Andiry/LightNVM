@@ -12,7 +12,7 @@
 #include "azure_config.h"
 #include "ocssd_server.h"
 
-#define READ_BUFFER_SIZE 4096
+#define READ_BUFFER_SIZE 24
 #define DATA_BUFFER_SIZE (16 * 1024 * 1024)
 
 
@@ -106,14 +106,15 @@ void ocssd_conn::process()
 	if (!write_ret)
 		close_conn();
 
-	modfd(epollfd, connfd_, EPOLLOUT);
+	modfd(epollfd, connfd_, EPOLLOUT | EPOLLIN);
 }
 
 bool ocssd_conn::read()
 {
+	printf("read: %d\n", read_end_);
 	MutexLock lock(&mutex_);
 	if (read_end_ >= READ_BUFFER_SIZE)
-		return false;
+		return true;
 
 	int bytes_read = 0;
 	while (true) {
@@ -186,17 +187,17 @@ REQUEST_CODE ocssd_conn::parse_buffer(char *temp_buf, int size)
 REQUEST_CODE ocssd_conn::process_read()
 {
 	char temp_buf[1024];
-	REQUEST_CODE code = NO_REQUEST;
+	REQUEST_CODE command = NO_REQUEST;
 
 	{
 		MutexLock lock(&mutex_);
 		printf("Received %d bytes\n", read_end_ - read_start_);
 
 		memcpy(temp_buf, read_buf_ + read_start_, read_end_ - read_start_);
-		code = parse_buffer(temp_buf, read_end_ - read_start_);
+		command = parse_buffer(temp_buf, read_end_ - read_start_);
 	}
 
-	switch (code) {
+	switch (command) {
 	case ALLOC_VSSD_REQUEST:
 		process_alloc_request(temp_buf);
 		break;
@@ -213,7 +214,7 @@ REQUEST_CODE ocssd_conn::process_read()
 		break;
 	}
 
-	return NO_REQUEST;
+	return command;
 }
 
 int ocssd_conn::publish_resource()
@@ -333,22 +334,21 @@ int ocssd_conn::initialize_remote_vssd(virtual_ocssd *vssd)
 
 int ocssd_conn::process_alloc_request(char *buffer)
 {
-	ocssd_alloc_request *request = new ocssd_alloc_request(buffer);
+	ocssd_alloc_request request(buffer);
 	virtual_ocssd *vssd = new virtual_ocssd();
 	size_t ret = 0;
 
 	MutexLock lock(&mutex_);
 
-	ret = manager->alloc_ocssd_resource(vssd, request);
+	ret = manager->alloc_ocssd_resource(vssd, &request);
 
 	if (!ret || vssd->get_num_units() < 1) {
 		printf("No resource to allocate.\n");
 		delete vssd;
-		delete request;
 		return -1;
 	}
 
-	if (request->get_remote()) {
+	if (request.get_remote()) {
 		printf("Remote VSSD request.\n");
 		remote_vssd_ = 1;
 		initialize_remote_vssd(vssd);
@@ -364,48 +364,48 @@ int ocssd_conn::process_alloc_request(char *buffer)
 	publish_resource();
 
 	delete vssd;
-	delete request;
 	return 0;
 }
 
 int ocssd_conn::process_read_request(char *buffer)
 {
-	ocssd_io_request *request = new ocssd_io_request(buffer);
-	int idx = request->get_block_index();
-	size_t count = request->get_count();
-	size_t offset = request->get_offset();
+	ocssd_io_request request(buffer);
+	uint32_t idx = request.get_block_index();
+	size_t count = request.get_count();
+	size_t offset = request.get_offset();
 	size_t ret = 0;
+
+	printf("%s: block %u, size %lu, offset%lu\n", __func__, idx, count, offset);
 
 	MutexLock lock(&mutex_);
 
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {
 		//FIXME: send error
-		delete request;
 		return -1;
 	}
 
 	ret = nvm_vblk_pread(blk, data_buf_, count, offset);
 	int sent = send(connfd_, data_buf_, ret, 0);
 
-	delete request;
 	return 0;
 }
 
 int ocssd_conn::process_write_request(char *buffer)
 {
-	ocssd_io_request *request = new ocssd_io_request(buffer);
-	int idx = request->get_block_index();
-	size_t count = request->get_count();
+	ocssd_io_request request(buffer);
+	uint32_t idx = request.get_block_index();
+	size_t count = request.get_count();
 	size_t received = 0;
 	size_t ret = 0;
+
+	printf("%s: block %u, size %lu\n", __func__, idx, count);
 
 	MutexLock lock(&mutex_);
 
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {
 		//FIXME: send error
-		delete request;
 		return -1;
 	}
 
@@ -416,33 +416,32 @@ int ocssd_conn::process_write_request(char *buffer)
 	ret = nvm_vblk_write(blk, data_buf_, received);
 	int sent = send(connfd_, data_buf_, ret, 0);
 
-	delete request;
 	return 0;
 }
 
 int ocssd_conn::process_erase_request(char *buffer)
 {
-	ocssd_io_request *request = new ocssd_io_request(buffer);
-	int idx = request->get_block_index();
+	ocssd_io_request request(buffer);
+	uint32_t idx = request.get_block_index();
+
+	printf("%s: block %u\n", __func__, idx);
 
 	MutexLock lock(&mutex_);
 
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {
 		//FIXME: send error
-		delete request;
 		return -1;
 	}
 
 	nvm_vblk_erase(blk);
 
-	delete request;
 	return 0;
 }
 
 bool ocssd_conn::process_write(REQUEST_CODE code)
 {
-	return false;
+	return true;
 }
 
 int ocssd_conn::epollfd = -1;

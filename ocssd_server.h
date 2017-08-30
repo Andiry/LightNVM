@@ -173,31 +173,47 @@ const ssize_t REQUEST_IO_SIZE = 24;
 class ocssd_io_request {
 public:
 
-	ocssd_io_request(uint32_t block_index, size_t count, size_t offset)
-		: block_index_(block_index),
+	ocssd_io_request(REQUEST_CODE command, uint32_t block_index, size_t count, size_t offset)
+		: command_(command),
+		block_index_(block_index),
 		count_(count),
 		offset_(offset) {}
 
 	ocssd_io_request(const char *buffer) {
 		uint32_t magic = deserialize_data4(buffer);
-		if (magic != READ_BLOCK_MAGIC && magic != WRITE_BLOCK_MAGIC) {
+		if (magic != READ_BLOCK_MAGIC &&
+				magic != WRITE_BLOCK_MAGIC &&
+				magic != ERASE_BLOCK_MAGIC) {
 			printf("Incorrect MAGIC: %x\n", magic);
 			throw std::runtime_error("Error: init request failed\n");
+		}
+
+		switch (magic) {
+		case (READ_BLOCK_MAGIC):
+			command_ = READ_BLOCK_REQUEST;
+			break;
+		case (WRITE_BLOCK_MAGIC):
+			command_ = WRITE_BLOCK_REQUEST;
+			break;
+		case (ERASE_BLOCK_MAGIC):
+			command_ = ERASE_BLOCK_REQUEST;
+			break;
+		default:
+			break;
 		}
 
 		block_index_	= deserialize_data4(buffer);
 		count_		= deserialize_data8(buffer);
 		offset_		= deserialize_data8(buffer);
 
-		printf("%s request: block %d, count %lu, offset %lu\n",
-			magic == READ_BLOCK_MAGIC ? "Read" : "Write",
-			block_index_, count_, offset_);
+		printf("%d request: block %d, count %lu, offset %lu\n",
+			command_, block_index_, count_, offset_);
 	}
 
-	size_t serialize(char *buffer, REQUEST_CODE command) {
+	size_t serialize(char *buffer) {
 		char *start = buffer;
 
-		switch (command) {
+		switch (command_) {
 		case (READ_BLOCK_REQUEST):
 			serialize_data4(buffer, READ_BLOCK_MAGIC);
 			break;
@@ -217,12 +233,14 @@ public:
 		return buffer - start;
 	}
 
+	REQUEST_CODE get_command() {return command_;}
 	uint32_t get_block_index() {return block_index_;}
 	size_t get_count() {return count_;}
 	size_t get_offset() {return offset_;}
 
 private:
 
+	REQUEST_CODE command_;
 	uint32_t block_index_;
 	size_t count_;
 	size_t offset_;

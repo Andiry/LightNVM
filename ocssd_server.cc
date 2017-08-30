@@ -161,10 +161,10 @@ int main(int argc, char **argv)
 				map[sockfd] = NULL;
 				close(sockfd);
 			} else if (events[i].events & EPOLLIN) {
-				printf("Sock %d: read request\n", sockfd);
+//				printf("Sock %d: read request\n", sockfd);
 				pool->append(map[sockfd]);
 			} else if (events[i].events & EPOLLOUT) {
-				printf("Sock %d: write request\n", sockfd);
+//				printf("Sock %d: write request\n", sockfd);
 				pool->append(map[sockfd]);
 			}
 		}

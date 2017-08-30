@@ -49,14 +49,92 @@ static int test_local_ocssd(int sock)
 	return 0;
 }
 
+static int test_erase_block(int sock, uint32_t block_idx)
+{
+	ocssd_io_request request(ERASE_BLOCK_REQUEST, block_idx, 0, 0);
+	char buffer[BUFFER_SIZE];
+
+	size_t size = request.serialize(buffer);
+
+	int sent = send(sock, buffer, size, 0);
+	printf("%s: Request size %lu, sent %d\n", __func__, size, sent);
+
+	return 0;
+}
+
+static int test_write_block(int sock, uint32_t block_idx, size_t count)
+{
+	ocssd_io_request request(WRITE_BLOCK_REQUEST, block_idx, count, 0);
+	char buffer[BUFFER_SIZE];
+
+	size_t size = request.serialize(buffer);
+
+	int sent = send(sock, buffer, size, 0);
+	printf("%s: Request size %lu, sent %d\n", __func__, size, sent);
+
+	char* data_buf = (char *)malloc(count);
+
+	memset(data_buf, 'a', count);
+	sent = send(sock, data_buf, count, 0);
+	printf("%s: write size %lu, sent %d\n", __func__, size, sent);
+
+	free(data_buf);
+	return 0;
+}
+
+static int test_read_block(int sock, uint32_t block_idx, size_t count, size_t offset)
+{
+	ocssd_io_request request(READ_BLOCK_REQUEST, block_idx, count, offset);
+	char buffer[BUFFER_SIZE];
+
+	size_t size = request.serialize(buffer);
+
+	int sent = send(sock, buffer, size, 0);
+	printf("%s: Request size %lu, sent %d\n", __func__, size, sent);
+
+	char* data_buf = (char *)malloc(count);
+
+	memset(data_buf, 'b', count);
+	sent = recv(sock, data_buf, count, 0);
+	printf("%s: read size %lu, recv %d, %c %c\n", __func__, size, sent,
+			data_buf[0], data_buf[count - 1]);
+
+	free(data_buf);
+	return 0;
+}
+
+static int test_remote_ocssd(int sock)
+{
+	char buffer[BUFFER_SIZE];
+	memset(buffer, 0, BUFFER_SIZE);
+
+	ocssd_alloc_request request(4, 1024, 1, 0, 1);
+	size_t size = request.serialize(buffer);
+
+	int sent = send(sock, buffer, size, 0);
+	printf("Request size %lu, sent %d\n", size, sent);
+
+	class virtual_ocssd vssd;
+	size = recv(sock, buffer, BUFFER_SIZE, 0);
+	printf("Received %lu\n", size);
+	vssd.deserialize(buffer);
+
+	test_erase_block(sock, 0);
+	test_write_block(sock, 0, 32768);
+	test_read_block(sock, 0, 32768, 0);
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
-	if (argc <= 1) {
-		printf("Usage: %s ip_address\n", argv[0]);
+	if (argc <= 2) {
+		printf("Usage: %s ip_address remote\n", argv[0]);
 		return 1;
 	}
 
 	const char *ip = argv[1];
+	int remote = atoi(argv[2]);
 
 	struct sockaddr_in server_address;
 	bzero(&server_address, sizeof(server_address));
@@ -71,8 +149,10 @@ int main(int argc, char **argv)
 				sizeof(server_address));
 	if (ret < 0) {
 		printf("errno %d\n", errno);
-	} else {
+	} else if (remote == 0) {
 		test_local_ocssd(sock);
+	} else {
+		test_remote_ocssd(sock);
 	}
 
 	close(sock);
