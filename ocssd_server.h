@@ -150,8 +150,17 @@ static inline uint64_t deserialize_data8(const char *&buffer) {
 
 /* ====================== OCSSD structs ======================== */
 
+enum REQUEST_CODE {
+	NO_REQUEST = 0,
+	ALLOC_VSSD_REQUEST,
+	READ_BLOCK_REQUEST,
+	WRITE_BLOCK_REQUEST,
+	ERASE_BLOCK_REQUEST,
+};
+
 const uint32_t READ_BLOCK_MAGIC = 0x6401;
 const uint32_t WRITE_BLOCK_MAGIC = 0x6402;
+const uint32_t ERASE_BLOCK_MAGIC = 0x6403;
 const ssize_t REQUEST_IO_SIZE = 24;
 
 /*
@@ -185,12 +194,22 @@ public:
 			block_index_, count_, offset_);
 	}
 
-	size_t serialize(char *buffer, int read) {
+	size_t serialize(char *buffer, REQUEST_CODE command) {
 		char *start = buffer;
-		if (read)
+
+		switch (command) {
+		case (READ_BLOCK_REQUEST):
 			serialize_data4(buffer, READ_BLOCK_MAGIC);
-		else
+			break;
+		case (WRITE_BLOCK_REQUEST):
 			serialize_data4(buffer, WRITE_BLOCK_MAGIC);
+			break;
+		case (ERASE_BLOCK_REQUEST):
+			serialize_data4(buffer, ERASE_BLOCK_MAGIC);
+			break;
+		default:
+			return 0;
+		}
 
 		serialize_data4(buffer, block_index_);
 		serialize_data8(buffer, count_);

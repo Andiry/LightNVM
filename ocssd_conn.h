@@ -15,12 +15,6 @@
 #define READ_BUFFER_SIZE 4096
 #define DATA_BUFFER_SIZE (16 * 1024 * 1024)
 
-enum REQUEST_CODE {
-	NO_REQUEST = 0,
-	ALLOC_VSSD_REQUEST,
-	READ_BLOCK_REQUEST,
-	WRITE_BLOCK_REQUEST,
-};
 
 class ocssd_conn {
 public:
@@ -45,6 +39,7 @@ private:
 	int process_alloc_request(char *buffer);
 	int process_read_request(char *buffer);
 	int process_write_request(char *buffer);
+	int process_erase_request(char *buffer);
 	int publish_resource();
 	int initialize_remote_vssd(virtual_ocssd *vssd);
 	int initialize_vssd_blocks(const virtual_ocssd_unit * vunit);
@@ -173,6 +168,14 @@ REQUEST_CODE ocssd_conn::parse_buffer(char *temp_buf, int size)
 		if (read_start_ == read_end_)
 			read_start_ = read_end_ = 0;
 		break;
+	case ERASE_BLOCK_MAGIC:
+		if (size < REQUEST_IO_SIZE)
+			break;
+		ret = ERASE_BLOCK_REQUEST;
+		read_start_ += REQUEST_IO_SIZE;
+		if (read_start_ == read_end_)
+			read_start_ = read_end_ = 0;
+		break;
 	default:
 		break;
 	}
@@ -202,6 +205,9 @@ REQUEST_CODE ocssd_conn::process_read()
 		break;
 	case WRITE_BLOCK_REQUEST:
 		process_write_request(temp_buf);
+		break;
+	case ERASE_BLOCK_REQUEST:
+		process_erase_request(temp_buf);
 		break;
 	default:
 		break;
@@ -375,6 +381,7 @@ int ocssd_conn::process_read_request(char *buffer)
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {
 		//FIXME: send error
+		delete request;
 		return -1;
 	}
 
@@ -398,6 +405,7 @@ int ocssd_conn::process_write_request(char *buffer)
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {
 		//FIXME: send error
+		delete request;
 		return -1;
 	}
 
@@ -407,6 +415,26 @@ int ocssd_conn::process_write_request(char *buffer)
 
 	ret = nvm_vblk_write(blk, data_buf_, received);
 	int sent = send(connfd_, data_buf_, ret, 0);
+
+	delete request;
+	return 0;
+}
+
+int ocssd_conn::process_erase_request(char *buffer)
+{
+	ocssd_io_request *request = new ocssd_io_request(buffer);
+	int idx = request->get_block_index();
+
+	MutexLock lock(&mutex_);
+
+	struct nvm_vblk *blk = GetBlockPointer(idx);
+	if (!blk) {
+		//FIXME: send error
+		delete request;
+		return -1;
+	}
+
+	nvm_vblk_erase(blk);
 
 	delete request;
 	return 0;
