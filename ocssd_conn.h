@@ -386,7 +386,7 @@ int ocssd_conn::process_read_request(char *buffer)
 	}
 
 	ret = nvm_vblk_pread(blk, data_buf_, count, offset);
-	int sent = send(connfd_, data_buf_, ret, 0);
+	send(connfd_, data_buf_, ret, 0);
 
 	return 0;
 }
@@ -414,7 +414,7 @@ int ocssd_conn::process_write_request(char *buffer)
 		received += ret;
 
 	ret = nvm_vblk_write(blk, data_buf_, received);
-	int sent = send(connfd_, data_buf_, ret, 0);
+	send(connfd_, data_buf_, ret, 0);
 
 	return 0;
 }

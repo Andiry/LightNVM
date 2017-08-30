@@ -7,7 +7,7 @@ BUILD = $(patsubst %.cc, %, $(SRCS))
 
 all: $(BUILD)
 
-.cc:
+.cc: $(wildcard *.h)
 	$(CC) $(CFLAGS) $< azure_access.cpp -o $@ $(CLIB)
 
 clean:
