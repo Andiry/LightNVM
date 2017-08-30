@@ -34,9 +34,6 @@ static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels)
 
 	geo = nvm_dev_get_geo(dev);
 
-	end_size = geo->nplanes * geo->npages * geo->nsectors * geo->sector_nbytes * geo->nluns;
-	start_size = geo->nplanes * geo->nsectors * geo->sector_nbytes;
-
 	for (int channel : channels) {
 		for (size_t lun = 0; lun < geo->nluns; lun++) {
 			addr.ppa = 0;
@@ -49,6 +46,9 @@ static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels)
 
 	blk = nvm_vblk_alloc(dev, units.data(), units.size());
 
+	end_size = nvm_vblk_get_nbytes(blk);
+	start_size = geo->nplanes * geo->nsectors * geo->sector_nbytes;
+
 	printf("vblk channels %lu, size %lu\n", channels.size(), nvm_vblk_get_nbytes(blk));
 
 	buf = nvm_buf_alloc(geo, end_size);
@@ -59,7 +59,7 @@ static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels)
 
 	memset(buf, 0, end_size);
 
-	while (start_size <= end_size) {
+	while (start_size <= end_size && (end_size % start_size) == 0) {
 		nvm_vblk_set_pos_read(blk, 0);
 
 		clock_gettime(CLOCK_MONOTONIC, &begin);

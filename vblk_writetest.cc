@@ -35,9 +35,6 @@ static int test_vblk(struct nvm_dev *dev, FILE *output, const std::vector<int> &
 
 	geo = nvm_dev_get_geo(dev);
 
-	end_size = geo->nplanes * geo->npages * geo->nsectors * geo->sector_nbytes * geo->nluns;
-	start_size = geo->nplanes * geo->nsectors * geo->sector_nbytes;
-
 	for (int channel : channels) {
 		for (size_t lun = 0; lun < geo->nluns; lun++) {
 			addr.ppa = 0;
@@ -49,6 +46,9 @@ static int test_vblk(struct nvm_dev *dev, FILE *output, const std::vector<int> &
 	}
 
 	blk = nvm_vblk_alloc(dev, units.data(), units.size());
+
+	end_size = nvm_vblk_get_nbytes(blk);
+	start_size = geo->nplanes * geo->nsectors * geo->sector_nbytes;
 
 	clock_gettime(CLOCK_MONOTONIC, &begin);
 	nvm_vblk_erase(blk);
@@ -66,7 +66,7 @@ static int test_vblk(struct nvm_dev *dev, FILE *output, const std::vector<int> &
 
 	memset(buf, 0, end_size);
 
-	while (start_size <= end_size) {
+	while (start_size <= end_size && (end_size % start_size) == 0) {
 		nvm_vblk_erase(blk);
 		nvm_vblk_set_pos_write(blk, 0);
 
@@ -82,7 +82,7 @@ static int test_vblk(struct nvm_dev *dev, FILE *output, const std::vector<int> &
 		printf("size %d, Write %lu ns, bandwidth %.2f MB/s\n", start_size, time1, (end_size * 1e3 / time1));
 		fprintf(output, "%lu,%d,%.2f\n", channels.size(), start_size, (end_size *1e3 / time1));
 		start_size *= 2;
-		printf("pos write: %zu, end size: %d\n", nvm_vblk_get_pos_write(blk), end_size);
+
 		assert(nvm_vblk_get_pos_write(blk) == (size_t)end_size);
 	}
 
