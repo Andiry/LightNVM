@@ -12,7 +12,7 @@
 #include "azure_config.h"
 #include "ocssd_server.h"
 
-#define READ_BUFFER_SIZE 24
+#define MESSAGE_BUFFER_SIZE 24
 #define DATA_BUFFER_SIZE (16 * 1024 * 1024)
 
 
@@ -48,9 +48,9 @@ private:
 	std::mutex mutex_;
 	int connfd_;
 	std::string ipaddr_;
-	int read_start_;
-	int read_end_;
-	char read_buf_[READ_BUFFER_SIZE];
+	int message_start_;
+	int message_end_;
+	char message_buf_[MESSAGE_BUFFER_SIZE];
 
 	/* Keep a virtual ssd here for remote access */
 	int remote_vssd_;
@@ -65,7 +65,7 @@ private:
 
 ocssd_conn::ocssd_conn(int connfd, const struct sockaddr_in &client)
 	: connfd_(connfd), ipaddr_(inet_ntoa(client.sin_addr)),
-	read_start_(0), read_end_(0), remote_vssd_(0), dev_(NULL), data_buf_(NULL)
+	message_start_(0), message_end_(0), remote_vssd_(0), dev_(NULL), data_buf_(NULL)
 {
 	std::cout << "New connection: conn " << connfd_
 		<< ", IP addr " << ipaddr_ << std::endl;
@@ -111,15 +111,15 @@ void ocssd_conn::process()
 
 bool ocssd_conn::read()
 {
-	printf("read: %d\n", read_end_);
+	printf("read: %d\n", message_end_);
 	MutexLock lock(&mutex_);
-	if (read_end_ >= READ_BUFFER_SIZE)
+	if (message_end_ >= MESSAGE_BUFFER_SIZE)
 		return true;
 
 	int bytes_read = 0;
 	while (true) {
-		bytes_read = recv(connfd_, read_buf_ + read_end_,
-					READ_BUFFER_SIZE - read_end_, 0);
+		bytes_read = recv(connfd_, message_buf_ + message_end_,
+					MESSAGE_BUFFER_SIZE - message_end_, 0);
 		if (bytes_read == -1) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				break;
@@ -128,7 +128,7 @@ bool ocssd_conn::read()
 			return false;
 		}
 
-		read_end_ += bytes_read;
+		message_end_ += bytes_read;
 	}
 
 	return true;
@@ -149,33 +149,33 @@ REQUEST_CODE ocssd_conn::parse_buffer(char *temp_buf, int size)
 		if (size < REQUEST_ALLOC_SIZE)
 			break;
 		ret = ALLOC_VSSD_REQUEST;
-		read_start_ += REQUEST_ALLOC_SIZE;
-		if (read_start_ == read_end_)
-			read_start_ = read_end_ = 0;
+		message_start_ += REQUEST_ALLOC_SIZE;
+		if (message_start_ == message_end_)
+			message_start_ = message_end_ = 0;
 		break;
 	case READ_BLOCK_MAGIC:
 		if (size < REQUEST_IO_SIZE)
 			break;
 		ret = READ_BLOCK_REQUEST;
-		read_start_ += REQUEST_IO_SIZE;
-		if (read_start_ == read_end_)
-			read_start_ = read_end_ = 0;
+		message_start_ += REQUEST_IO_SIZE;
+		if (message_start_ == message_end_)
+			message_start_ = message_end_ = 0;
 		break;
 	case WRITE_BLOCK_MAGIC:
 		if (size < REQUEST_IO_SIZE)
 			break;
 		ret = WRITE_BLOCK_REQUEST;
-		read_start_ += REQUEST_IO_SIZE;
-		if (read_start_ == read_end_)
-			read_start_ = read_end_ = 0;
+		message_start_ += REQUEST_IO_SIZE;
+		if (message_start_ == message_end_)
+			message_start_ = message_end_ = 0;
 		break;
 	case ERASE_BLOCK_MAGIC:
 		if (size < REQUEST_IO_SIZE)
 			break;
 		ret = ERASE_BLOCK_REQUEST;
-		read_start_ += REQUEST_IO_SIZE;
-		if (read_start_ == read_end_)
-			read_start_ = read_end_ = 0;
+		message_start_ += REQUEST_IO_SIZE;
+		if (message_start_ == message_end_)
+			message_start_ = message_end_ = 0;
 		break;
 	default:
 		break;
@@ -191,10 +191,10 @@ REQUEST_CODE ocssd_conn::process_read()
 
 	{
 		MutexLock lock(&mutex_);
-		printf("Received %d bytes\n", read_end_ - read_start_);
+		printf("Received %d bytes\n", message_end_ - message_start_);
 
-		memcpy(temp_buf, read_buf_ + read_start_, read_end_ - read_start_);
-		command = parse_buffer(temp_buf, read_end_ - read_start_);
+		memcpy(temp_buf, message_buf_ + message_start_, message_end_ - message_start_);
+		command = parse_buffer(temp_buf, message_end_ - message_start_);
 	}
 
 	switch (command) {

@@ -13,7 +13,8 @@
 #include <string>
 #include <mutex>
 
-#define OCSSD_PORT	50001
+#define OCSSD_MESSAGE_PORT	50001
+#define OCSSD_DATA_PORT		50002
 
 static int setnonblocking(int fd)
 {

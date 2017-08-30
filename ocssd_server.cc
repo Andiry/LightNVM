@@ -111,7 +111,7 @@ int main(int argc, char **argv)
 	bzero(&address, sizeof(address));
 	address.sin_family = AF_INET;
 	inet_pton(AF_INET, ip.c_str(), &address.sin_addr);
-	address.sin_port = htons(OCSSD_PORT);
+	address.sin_port = htons(OCSSD_MESSAGE_PORT);
 
 	int listenfd = socket(PF_INET, SOCK_STREAM, 0);
 	assert(listenfd >= 0);
@@ -124,7 +124,7 @@ int main(int argc, char **argv)
 	ret = listen(listenfd, 5);
 	assert(ret != -1);
 
-	std::cout << "Listening on " << ip << ":" << OCSSD_PORT << "..." << std::endl;
+	std::cout << "Listening on " << ip << ":" << OCSSD_MESSAGE_PORT << "..." << std::endl;
 
 	epoll_event events[MAX_EVENT_NUMBER];
 	int epollfd = epoll_create(5);
