@@ -12,6 +12,43 @@
 
 #define BUFFER_SIZE 1024
 
+static int test_local_ocssd(int sock)
+{
+	char buffer[BUFFER_SIZE];
+	memset(buffer, 0, BUFFER_SIZE);
+
+	ocssd_alloc_request request(4, 1024, 1, 0, 0);
+	size_t size = request.serialize(buffer);
+
+	int sent = send(sock, buffer, size, 0);
+	printf("Request size %lu, sent %d\n", size, sent);
+
+	class virtual_ocssd vssd;
+	size = recv(sock, buffer, BUFFER_SIZE, 0);
+	printf("Received %lu\n", size);
+	vssd.deserialize(buffer);
+	const virtual_ocssd_unit *vunit = vssd.get_unit(0);
+
+	for (const virtual_ocssd_channel *vchannel : vunit->get_channels()) {
+		printf("channel %u, %u LUNs\n",
+			vchannel->get_channel_id(),
+			vchannel->get_num_luns());
+		if (vchannel->is_shared()) {
+			for (const virtual_ocssd_lun * lun : vchannel->get_luns()) {
+				printf("LUN %u: block start %u, %u blocks\n",
+					lun->get_lun_id(),
+					lun->get_block_start(),
+					lun->get_num_blocks());
+			}
+		} else {
+			printf("Exclusive channel, %u blocks\n",
+				vchannel->get_total_blocks());
+		}
+	}
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc <= 1) {
@@ -35,37 +72,7 @@ int main(int argc, char **argv)
 	if (ret < 0) {
 		printf("errno %d\n", errno);
 	} else {
-		char buffer[BUFFER_SIZE];
-		memset(buffer, 0, BUFFER_SIZE);
-
-		ocssd_alloc_request request(4, 1024, 1, 0, 0);
-		size_t size = request.serialize(buffer);
-
-		int sent = send(sock, buffer, size, 0);
-		printf("Request size %lu, sent %d\n", size, sent);
-
-		class virtual_ocssd vssd;
-		size = recv(sock, buffer, BUFFER_SIZE, 0);
-		printf("Received %lu\n", size);
-		vssd.deserialize(buffer);
-		const virtual_ocssd_unit *vunit = vssd.get_unit(0);
-
-		for (const virtual_ocssd_channel *vchannel : vunit->get_channels()) {
-			printf("channel %u, %u LUNs\n",
-				vchannel->get_channel_id(),
-				vchannel->get_num_luns());
-			if (vchannel->is_shared()) {
-				for (const virtual_ocssd_lun * lun : vchannel->get_luns()) {
-					printf("LUN %u: block start %u, %u blocks\n",
-						lun->get_lun_id(),
-						lun->get_block_start(),
-						lun->get_num_blocks());
-				}
-			} else {
-				printf("Exclusive channel, %u blocks\n",
-					vchannel->get_total_blocks());
-			}
-		}
+		test_local_ocssd(sock);
 	}
 
 	close(sock);
