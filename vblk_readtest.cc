@@ -18,7 +18,7 @@ enum BlkState {
 	kBad		= 0x8,
 };
 
-static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels)
+static int test_vblk(struct nvm_dev *dev, FILE* output, const std::vector<int> & channels)
 {
 	const struct nvm_geo *geo;
 	struct nvm_addr addr;
@@ -72,6 +72,7 @@ static int test_vblk(struct nvm_dev *dev, const std::vector<int> & channels)
 
 		time1 = (finish.tv_sec * 1e9 + finish.tv_nsec) - (begin.tv_sec * 1e9 + begin.tv_nsec);
 		printf("size %d, Read %lu ns, bandwidth %.2f MB/s\n", start_size, time1, (end_size * 1e3 / time1));
+		fprintf(output, "%lu,%d,%.2f\n", channels.size(), start_size, (end_size *1e3 / time1));
 		start_size *= 2;
 	}
 
@@ -87,10 +88,11 @@ int main(int argc, char **argv) {
 	const struct nvm_geo *geo;
 	std::vector<int> channels;
 	std::string dev1("/dev/nvme0n1");
+	FILE *output;
 	size_t channel = 0;
 
-	if (argc < 2) {
-		printf("usage: ./vblk_read $DEVICE\n");
+	if (argc < 3) {
+		printf("usage: ./vblk_read $DEVICE $OUTPUT_STAT_FILE\n");
 		return 1;
 	}
 
@@ -103,6 +105,9 @@ int main(int argc, char **argv) {
 
 	geo = nvm_dev_get_geo(dev);
 
+	output = fopen(argv[2], "w");
+	fprintf(output, "%s,%s,%s\n", "Channels", "Request size", "Bandwidth (MB/s)");
+
 	if (dev1.compare(argv[1]) == 0) {
 		/* nvme0n1 only has channel 0, 1, 4, 5, 8, 9, 12, 13 working */
 		while (channel < geo->nchannels) {
@@ -111,17 +116,18 @@ int main(int argc, char **argv) {
 				continue;
 			}
 			channels.push_back(channel);
-			test_vblk(dev, channels);
+			test_vblk(dev, output, channels);
 			channel++;
 		}
 	} else {
 		for (channel = 0; channel < geo->nchannels; channel++) {
 			channels.push_back(channel);
-			test_vblk(dev, channels);
+			test_vblk(dev, output, channels);
 		}
 	}
 
 	nvm_dev_close(dev);
+	fclose(output);
 	return 0;
 }
 
