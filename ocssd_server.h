@@ -327,6 +327,15 @@ private:
  * NUM_UNITS			4 bytes
  *	DEV_NAME_LEN		4 bytes
  *	DEV_NAME		4 bytes * N
+ *	GEO_NCHANNELS		8 bytes
+ *	GEO_NLUNS		8 bytes
+ *	GEO_NPLANCES		8 bytes
+ *	GEO_NBLOCKS		8 bytes
+ *	GEO_NPAGES		8 bytes
+ *	GEO_NSECTORS		8 bytes
+ *	GEO_PAGE_NBYTES		8 bytes
+ *	GEO_SECTOR_NBYTES	8 bytes
+ *	GEO_META_NBYTES		8 bytes
  *	NUM_CHANNELS		4 bytes
  *		CHANNEL_ID	4 bytes
  *		SHARED		4 bytes
@@ -513,25 +522,35 @@ void virtual_ocssd_channel::print() const {
 class virtual_ocssd_unit {
 public:
 
-	virtual_ocssd_unit(std::string dev_name = "")
-		:dev_name_(dev_name) {}
+	virtual_ocssd_unit(std::string dev_name, const struct nvm_geo *geo)
+			:dev_name_(dev_name) {
+		geo_ = new nvm_geo;
+		memcpy(geo_, geo, sizeof(struct nvm_geo));
+	}
+
+	virtual_ocssd_unit() {geo_ = new nvm_geo;}
 
 	~virtual_ocssd_unit() {
 		for (auto channel : channels_)
 			delete channel;
+		delete geo_;
 	}
 
 	void generate_units(std::vector<uint32_t> &units) const;
 	size_t serialize(char *&buffer) const;
+	size_t serialize_geo(char *&buffer) const;
 	size_t deserialize(const char *&buffer);
+	size_t deserialize_geo(const char *&buffer);
 	void add(virtual_ocssd_channel *channel) {channels_.push_back(channel);}
 
 	const std::string& get_dev_name() const {return dev_name_;}
+	const struct nvm_geo * get_geo() const {return geo_;}
 	const std::vector<virtual_ocssd_channel *>& get_channels() const {return channels_;}
 	void print() const;
 
 private:
 	std::string dev_name_;
+	struct nvm_geo *geo_;
 	std::vector<virtual_ocssd_channel *> channels_;
 };
 
@@ -541,7 +560,26 @@ void virtual_ocssd_unit::generate_units(std::vector<uint32_t> &units) const
 		channel->generate_units(units);
 }
 
-size_t virtual_ocssd_unit::serialize(char *&buffer) const {
+size_t virtual_ocssd_unit::serialize_geo(char *&buffer) const
+{
+	char *start = buffer;
+	char *&p = buffer;
+
+	serialize_data8(p, geo_->nchannels);
+	serialize_data8(p, geo_->nluns);
+	serialize_data8(p, geo_->nplanes);
+	serialize_data8(p, geo_->nblocks);
+	serialize_data8(p, geo_->npages);
+	serialize_data8(p, geo_->nsectors);
+	serialize_data8(p, geo_->page_nbytes);
+	serialize_data8(p, geo_->sector_nbytes);
+	serialize_data8(p, geo_->meta_nbytes);
+
+	return p - start;
+}
+
+size_t virtual_ocssd_unit::serialize(char *&buffer) const
+{
 	char *start = buffer;
 	char *&p = buffer;
 	size_t len = dev_name_.length() + 1;
@@ -551,6 +589,8 @@ size_t virtual_ocssd_unit::serialize(char *&buffer) const {
 	len = (len + 3) / 4 * 4;
 	p += len;
 
+	serialize_geo(p);
+
 	serialize_data4(p, channels_.size());
 
 	for (const virtual_ocssd_channel *channel : channels_)
@@ -559,7 +599,26 @@ size_t virtual_ocssd_unit::serialize(char *&buffer) const {
 	return p - start;
 }
 
-size_t virtual_ocssd_unit::deserialize(const char *&buffer) {
+size_t virtual_ocssd_unit::deserialize_geo(const char *&buffer)
+{
+	const char *start = buffer;
+	const char *&p = buffer;
+
+	geo_->nchannels		= deserialize_data8(p);
+	geo_->nluns		= deserialize_data8(p);
+	geo_->nplanes		= deserialize_data8(p);
+	geo_->nblocks		= deserialize_data8(p);
+	geo_->npages		= deserialize_data8(p);
+	geo_->nsectors		= deserialize_data8(p);
+	geo_->page_nbytes	= deserialize_data8(p);
+	geo_->sector_nbytes	= deserialize_data8(p);
+	geo_->meta_nbytes	= deserialize_data8(p);
+
+	return p - start;
+}
+
+size_t virtual_ocssd_unit::deserialize(const char *&buffer)
+{
 	const char *start = buffer;
 	const char *&p = buffer;
 	uint32_t name_len = deserialize_data4(p);
@@ -568,6 +627,8 @@ size_t virtual_ocssd_unit::deserialize(const char *&buffer) {
 	dev_name_ = temp;
 	name_len = (name_len + 3) / 4 * 4;
 	p += name_len;
+
+	deserialize_geo(p);
 
 	uint32_t num_channel = deserialize_data4(p);
 	std::cout<< "Device " << dev_name_ << ": "
@@ -582,7 +643,8 @@ size_t virtual_ocssd_unit::deserialize(const char *&buffer) {
 	return p - start;
 }
 
-void virtual_ocssd_unit::print() const {
+void virtual_ocssd_unit::print() const
+{
 	std::cout<< "Device " << dev_name_ << ": "
 		 << channels_.size() << " channels" << std::endl;
 	for (virtual_ocssd_channel * vchannel : channels_)
@@ -988,7 +1050,7 @@ size_t ocssd_unit::alloc_channels(virtual_ocssd *vssd, ocssd_alloc_request *requ
 	if (request->get_channels() == 0)
 		return 0;
 
-	virtual_ocssd_unit *vunit = new virtual_ocssd_unit(name_);
+	virtual_ocssd_unit *vunit = new virtual_ocssd_unit(name_, geo_);
 
 	MutexLock lock(&mutex_);
 
