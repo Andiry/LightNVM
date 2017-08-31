@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <string.h>
 
+#include "ocssd_server.h"
+
 #define BUFFER_SIZE 1024
 
 int main(int argc, char **argv)
@@ -24,7 +26,7 @@ int main(int argc, char **argv)
 	bzero(&server_address, sizeof(server_address));
 	server_address.sin_family = AF_INET;
 	inet_pton(AF_INET, ip, &server_address.sin_addr);
-	server_address.sin_port = htons(5555);
+	server_address.sin_port = htons(OCSSD_MESSAGE_PORT);
 
 	int sock = socket(PF_INET, SOCK_STREAM, 0);
 	assert(sock >= 0);

@@ -51,10 +51,13 @@
 #include <err.h>
 #include <iostream>
 #include <deque>
-
+#include <boost/filesystem.hpp>
 
 /* Libevent. */
 #include <event.h>
+
+#include "azure_config.h"
+#include "ocssd_server.h"
 
 /* Port to listen on. */
 #define SERVER_PORT 5555
@@ -69,7 +72,7 @@
  */
 struct bufferq {
 	/* The buffer. */
-	u_char *buf;
+	char *buf;
 
 	/* The length of buf. */
 	int len;
@@ -115,6 +118,50 @@ static void addsig(int sig, void (*handler)(int), bool restart)
 	sigaction(sig, &action, NULL);
 }
 
+ocssd_manager *manager;
+
+static int publish_resource(ocssd_manager *manager)
+{
+	const std::vector<ocssd_unit *> & ocssds = manager->get_units();
+
+	for (auto unit : ocssds) {
+		size_t shared = 0;
+		size_t exclusive = 0;
+		size_t blocks = 0;
+		int ret;
+
+		ret = unit->get_ocssd_stats(shared, exclusive, blocks);
+
+		if (!ret)
+			ret = azure_insert_entity(unit->get_desc(),
+						shared, exclusive, blocks);
+	}
+
+	return ocssds.size();
+}
+
+static int initialize_ocssd_manager()
+{
+	manager = new ocssd_manager();
+	if (!manager)
+		return -ENOMEM;
+
+	/* Check for existing OCSSDs */
+	/* nvme2n1 used as pblk */
+
+	for (int i = 0; i < 2; i++) {
+		std::string path = "/dev/nvme" + std::to_string(i) + "n1";
+
+		if (!boost::filesystem::exists(path))
+			continue;
+
+		manager->add_ocssd(path);
+	}
+
+	publish_resource(manager);
+	return 0;
+}
+
 /**
  * Set a socket to non-blocking mode.
  */
@@ -142,13 +189,13 @@ on_read(int fd, short ev, void *arg)
 {
 	struct client *client = (struct client *)arg;
 	struct bufferq *bufferq;
-	u_char *buf;
+	char *buf;
 	int len;
 	
 	/* Because we are event based and need to be told when we can
 	 * write, we have to malloc the read buffer and put it on the
 	 * clients write queue. */
-	buf = (u_char *)malloc(BUFLEN);
+	buf = (char *)malloc(BUFLEN);
 	if (buf == NULL)
 		err(1, "malloc failed");
 
@@ -299,6 +346,7 @@ main(int argc, char **argv)
 	int listen_fd;
 	struct sockaddr_in listen_addr;
 	int reuseaddr_on = 1;
+	int ret = 0;
 
 	/* The socket accept event. */
 	struct event ev_accept;
@@ -306,6 +354,13 @@ main(int argc, char **argv)
 	base = event_base_new();
 	if (!base)
 		return -ENOMEM;
+
+	ret = initialize_ocssd_manager();
+	if (ret) {
+		printf("OCSSD manager init failed\n");
+		event_base_free(base);
+		return ret;
+	}
 
 	addsig(SIGINT, interrupt, false);
 
@@ -323,12 +378,14 @@ main(int argc, char **argv)
 	memset(&listen_addr, 0, sizeof(listen_addr));
 	listen_addr.sin_family = AF_INET;
 	listen_addr.sin_addr.s_addr = INADDR_ANY;
-	listen_addr.sin_port = htons(SERVER_PORT);
+	listen_addr.sin_port = htons(OCSSD_MESSAGE_PORT);
 	if (bind(listen_fd, (struct sockaddr *)&listen_addr,
 		sizeof(listen_addr)) < 0)
 		err(1, "bind failed");
 	if (listen(listen_fd, 5) < 0)
 		err(1, "listen failed");
+
+	std::cout << "Listening on port " << OCSSD_MESSAGE_PORT << "..." << std::endl;
 
 	/* Set the socket to non-blocking, this is essential in event
 	 * based programming with libevent. */
@@ -345,6 +402,8 @@ main(int argc, char **argv)
 	event_base_dispatch(base);
 
 	event_base_free(base);
+	manager->persist();
+	delete manager;
 	printf("Exit\n");
 	return 0;
 }
