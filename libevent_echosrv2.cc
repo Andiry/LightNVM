@@ -288,6 +288,9 @@ on_write(int fd, short ev, void *arg)
 	client->writeq.pop_front();
 	free(bufferq->buf);
 	delete bufferq;
+
+	if (client->writeq.size() > 0)
+		event_add(&client->ev_write, NULL);
 }
 
 /**
