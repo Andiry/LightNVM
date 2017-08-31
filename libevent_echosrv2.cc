@@ -27,10 +27,6 @@
  * SUCH DAMAGE.
  */
 
-/*
- * libevent echo server example.
- */
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -57,50 +53,12 @@
 #include <event.h>
 
 #include "azure_config.h"
+#include "ocssd_conn.h"
 #include "ocssd_server.h"
-
-/* Port to listen on. */
-#define SERVER_PORT 5555
 
 /* Length of each buffer in the buffer queue.  Also becomes the amount
  * of data we try to read per call to read(2). */
 #define BUFLEN 1024
-
-/**
- * In event based programming we need to queue up data to be written
- * until we are told by libevent that we can write.
- */
-struct bufferq {
-	/* The buffer. */
-	char *buf;
-
-	/* The length of buf. */
-	int len;
-
-	/* The offset into buf to start writing from. */
-	int offset;
-};
-
-/**
- * A struct for client specific data, also includes pointer to create
- * a list of clients.
- *
- * In event based programming it is usually necessary to keep some
- * sort of object per client for state information.
- */
-struct client {
-	/* Events. We need 2 event structures, one for read event
-	 * notification and the other for writing. */
-	struct event ev_read;
-	struct event ev_write;
-
-	/* This is the queue of data to be written to this client. As
-	 * we can't call write(2) until libevent tells us the socket
-	 * is ready for writing. */
-	std::deque<bufferq *> writeq;
-};
-
-struct event_base *base;
 
 void interrupt(int signum) {
 	printf("%s\n", __func__);
@@ -187,7 +145,7 @@ setnonblock(int fd)
 void
 on_read(int fd, short ev, void *arg)
 {
-	struct client *client = (struct client *)arg;
+	ocssd_conn *client = (ocssd_conn *)arg;
 	struct bufferq *bufferq;
 	char *buf;
 	int len;
@@ -245,7 +203,7 @@ on_read(int fd, short ev, void *arg)
 void
 on_write(int fd, short ev, void *arg)
 {
-	struct client *client = (struct client *)arg;
+	ocssd_conn *client = (ocssd_conn *)arg;
 	struct bufferq *bufferq;
 	int len;
 
@@ -303,7 +261,7 @@ on_accept(int fd, short ev, void *arg)
 	int client_fd;
 	struct sockaddr_in client_addr;
 	socklen_t client_len = sizeof(client_addr);
-	struct client *client;
+	ocssd_conn *client;
 
 	/* Accept the new connection. */
 	client_fd = accept(fd, (struct sockaddr *)&client_addr, &client_len);
@@ -318,7 +276,7 @@ on_accept(int fd, short ev, void *arg)
 
 	/* We've accepted a new client, allocate a client object to
 	 * maintain the state of this client. */
-	client = new struct client;
+	client = new ocssd_conn(client_fd, client_addr);
 	if (client == NULL)
 		err(1, "malloc failed");
 

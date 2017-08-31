@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <deque>
 #include <exception>
 
 #include "azure_config.h"
@@ -15,6 +16,22 @@
 #define MESSAGE_BUFFER_SIZE 24
 #define DATA_BUFFER_SIZE (16 * 1024 * 1024)
 
+/**
+ * In event based programming we need to queue up data to be written
+ * until we are told by libevent that we can write.
+ */
+struct bufferq {
+	/* The buffer. */
+	char *buf;
+
+	/* The length of buf. */
+	int len;
+
+	/* The offset into buf to start writing from. */
+	int offset;
+};
+
+struct event_base *base;
 
 class ocssd_conn {
 public:
@@ -25,6 +42,16 @@ public:
 	void process();
 	bool read();
 	bool write();
+
+	/* Events. We need 2 event structures, one for read event
+	 * notification and the other for writing. */
+	struct event ev_read;
+	struct event ev_write;
+
+	/* This is the queue of data to be written to this client. As
+	 * we can't call write(2) until libevent tells us the socket
+	 * is ready for writing. */
+	std::deque<bufferq *> writeq;
 
 	static int epollfd;
 	static ocssd_manager *manager;
