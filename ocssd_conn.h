@@ -43,8 +43,7 @@ public:
 	~ocssd_conn();
 
 	void close_conn(bool real_close = true);
-	bool read();
-	bool write();
+	REQUEST_CODE process_incoming_requests();
 
 	/* Events. We need 2 event structures, one for read event
 	 * notification and the other for writing. */
@@ -60,7 +59,6 @@ private:
 	ocssd_conn(const ocssd_conn &);
 	ocssd_conn & operator=(const ocssd_conn &);
 
-	REQUEST_CODE process_read();
 	REQUEST_CODE parse_buffer(char *temp_buf, int size);
 	int process_alloc_request(char *buffer);
 	int process_read_request(char *buffer);
@@ -164,7 +162,7 @@ REQUEST_CODE ocssd_conn::parse_buffer(char *temp_buf, int size)
 	return ret;
 }
 
-REQUEST_CODE ocssd_conn::process_read()
+REQUEST_CODE ocssd_conn::process_incoming_requests()
 {
 	char temp_buf[1024];
 	REQUEST_CODE command = NO_REQUEST;
