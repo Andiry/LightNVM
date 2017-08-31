@@ -31,13 +31,18 @@ struct bufferq {
 	int offset;
 };
 
+enum conn_state {
+	RECEIVING_COMMAND = 0,
+	RECEIVING_READ,
+};
+
 class ocssd_conn {
 public:
-	ocssd_conn(int connfd, const struct sockaddr_in &client);
+	ocssd_conn(ocssd_manager *manager, int connfd,
+			const struct sockaddr_in &client);
 	~ocssd_conn();
 
 	void close_conn(bool real_close = true);
-	void process();
 	bool read();
 	bool write();
 
@@ -51,15 +56,11 @@ public:
 	 * is ready for writing. */
 	std::deque<bufferq *> writeq;
 
-	static int epollfd;
-	static ocssd_manager *manager;
-
 private:
 	ocssd_conn(const ocssd_conn &);
 	ocssd_conn & operator=(const ocssd_conn &);
 
 	REQUEST_CODE process_read();
-	bool process_write(REQUEST_CODE code);
 	REQUEST_CODE parse_buffer(char *temp_buf, int size);
 	int process_alloc_request(char *buffer);
 	int process_read_request(char *buffer);
@@ -70,12 +71,14 @@ private:
 	int initialize_vssd_blocks(const virtual_ocssd_unit * vunit);
 	struct nvm_vblk *GetBlockPointer(size_t blk_idx) {return blks_array_[blk_idx];}
 
+	ocssd_manager *manager;
 	std::mutex mutex_;
 	int connfd_;
 	std::string ipaddr_;
 	int message_start_;
 	int message_end_;
 	char message_buf_[MESSAGE_BUFFER_SIZE];
+	conn_state state;
 
 	/* Keep a virtual ssd here for remote access */
 	int remote_vssd_;
@@ -88,9 +91,11 @@ private:
 	char* data_buf_;
 };
 
-ocssd_conn::ocssd_conn(int connfd, const struct sockaddr_in &client)
-	: connfd_(connfd), ipaddr_(inet_ntoa(client.sin_addr)),
-	message_start_(0), message_end_(0), remote_vssd_(0), dev_(NULL), data_buf_(NULL)
+ocssd_conn::ocssd_conn(ocssd_manager *manager, int connfd,
+			const struct sockaddr_in &client)
+	: manager(manager), connfd_(connfd), ipaddr_(inet_ntoa(client.sin_addr)),
+	message_start_(0), message_end_(0), state(RECEIVING_COMMAND),
+	remote_vssd_(0), dev_(NULL), data_buf_(NULL)
 {
 	std::cout << "New connection: conn " << connfd_
 		<< ", IP addr " << ipaddr_ << std::endl;
@@ -110,58 +115,8 @@ ocssd_conn::~ocssd_conn()
 void ocssd_conn::close_conn(bool real_close)
 {
 	if (real_close && connfd_ != -1) {
-		removefd(epollfd, connfd_);
 		connfd_ = -1;
 	}
-}
-
-void ocssd_conn::process()
-{
-	REQUEST_CODE read_ret = NO_REQUEST;
-
-	if (read()) {
-		read_ret = process_read();
-		if (read_ret == NO_REQUEST) {
-			modfd(epollfd, connfd_, EPOLLIN);
-			return;
-		}
-	}
-
-	bool write_ret = process_write(read_ret);
-	if (!write_ret)
-		close_conn();
-
-	modfd(epollfd, connfd_, EPOLLOUT | EPOLLIN);
-}
-
-bool ocssd_conn::read()
-{
-	printf("read: %d\n", message_end_);
-	MutexLock lock(&mutex_);
-	if (message_end_ >= MESSAGE_BUFFER_SIZE)
-		return true;
-
-	int bytes_read = 0;
-	while (true) {
-		bytes_read = recv(connfd_, message_buf_ + message_end_,
-					MESSAGE_BUFFER_SIZE - message_end_, 0);
-		if (bytes_read == -1) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				break;
-			return false;
-		} else if (bytes_read == 0) {
-			return false;
-		}
-
-		message_end_ += bytes_read;
-	}
-
-	return true;
-}
-
-bool ocssd_conn::write()
-{
-	return true;
 }
 
 REQUEST_CODE ocssd_conn::parse_buffer(char *temp_buf, int size)
@@ -463,13 +418,5 @@ int ocssd_conn::process_erase_request(char *buffer)
 
 	return 0;
 }
-
-bool ocssd_conn::process_write(REQUEST_CODE code)
-{
-	return true;
-}
-
-int ocssd_conn::epollfd = -1;
-ocssd_manager *ocssd_conn::manager = NULL;
 
 #endif

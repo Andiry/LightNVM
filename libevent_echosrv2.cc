@@ -264,6 +264,7 @@ on_accept(int fd, short ev, void *arg)
 	struct sockaddr_in client_addr;
 	socklen_t client_len = sizeof(client_addr);
 	ocssd_conn *client;
+	ocssd_manager *manager = static_cast<ocssd_manager *>(arg);
 
 	/* Accept the new connection. */
 	client_fd = accept(fd, (struct sockaddr *)&client_addr, &client_len);
@@ -278,7 +279,7 @@ on_accept(int fd, short ev, void *arg)
 
 	/* We've accepted a new client, allocate a client object to
 	 * maintain the state of this client. */
-	client = new ocssd_conn(client_fd, client_addr);
+	client = new ocssd_conn(manager, client_fd, client_addr);
 	if (client == NULL)
 		err(1, "malloc failed");
 
@@ -357,7 +358,7 @@ main(int argc, char **argv)
 
 	/* We now have a listening socket, we create a read event to
 	 * be notified when a client connects. */
-	event_set(&ev_accept, listen_fd, EV_READ|EV_PERSIST, on_accept, NULL);
+	event_set(&ev_accept, listen_fd, EV_READ|EV_PERSIST, on_accept, manager);
 	event_base_set(base, &ev_accept);
 	event_add(&ev_accept, NULL);
 
