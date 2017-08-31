@@ -47,6 +47,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <signal.h>
 #include <err.h>
 #include <iostream>
 #include <deque>
@@ -95,6 +96,24 @@ struct client {
 	 * is ready for writing. */
 	std::deque<bufferq *> writeq;
 };
+
+struct event_base *base;
+
+void interrupt(int signum) {
+	printf("%s\n", __func__);
+	event_base_loopbreak(base);
+}
+
+static void addsig(int sig, void (*handler)(int), bool restart)
+{
+	struct sigaction action;
+	action.sa_handler = handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	if (restart)
+		action.sa_flags |= SA_RESTART;
+	sigaction(sig, &action, NULL);
+}
 
 /**
  * Set a socket to non-blocking mode.
@@ -259,6 +278,7 @@ on_accept(int fd, short ev, void *arg)
 	 * read. */
 	event_set(&client->ev_read, client_fd, EV_READ|EV_PERSIST, on_read, 
 	    client);
+	event_base_set(base, &client->ev_read);
 
 	/* Setting up the event does not activate, add the event so it
 	 * becomes active. */
@@ -267,6 +287,7 @@ on_accept(int fd, short ev, void *arg)
 	/* Create the write event, but don't add it until we have
 	 * something to write. */
 	event_set(&client->ev_write, client_fd, EV_WRITE, on_write, client);
+	event_base_set(base, &client->ev_write);
 
 	printf("Accepted connection from %s\n",
                inet_ntoa(client_addr.sin_addr));
@@ -281,6 +302,12 @@ main(int argc, char **argv)
 
 	/* The socket accept event. */
 	struct event ev_accept;
+
+	base = event_base_new();
+	if (!base)
+		return -ENOMEM;
+
+	addsig(SIGINT, interrupt, false);
 
 	/* Initialize libevent. */
 	event_init();
@@ -311,10 +338,13 @@ main(int argc, char **argv)
 	/* We now have a listening socket, we create a read event to
 	 * be notified when a client connects. */
 	event_set(&ev_accept, listen_fd, EV_READ|EV_PERSIST, on_accept, NULL);
+	event_base_set(base, &ev_accept);
 	event_add(&ev_accept, NULL);
 
 	/* Start the libevent event loop. */
-	event_dispatch();
+	event_base_dispatch(base);
 
+	event_base_free(base);
+	printf("Exit\n");
 	return 0;
 }
