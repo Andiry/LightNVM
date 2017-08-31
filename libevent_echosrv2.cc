@@ -148,10 +148,9 @@ void
 on_read(int fd, short ev, void *arg)
 {
 	ocssd_conn *client = (ocssd_conn *)arg;
-	struct bufferq *bufferq;
-	char *buf;
-	int len;
-	
+
+	client->process_incoming_requests(fd);
+#if 0
 	/* Because we are event based and need to be told when we can
 	 * write, we have to malloc the read buffer and put it on the
 	 * clients write queue. */
@@ -196,6 +195,7 @@ on_read(int fd, short ev, void *arg)
 	/* Since we now have data that needs to be written back to the
 	 * client, add a write event. */
 	event_add(&client->ev_write, NULL);
+#endif
 }
 
 /**
@@ -246,7 +246,6 @@ on_write(int fd, short ev, void *arg)
 	/* The data was completely written, remove the buffer from the
 	 * write queue. */
 	client->writeq.pop_front();
-	free(bufferq->buf);
 	delete bufferq;
 
 	if (client->writeq.size() > 0)
