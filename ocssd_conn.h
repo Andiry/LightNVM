@@ -31,8 +31,6 @@ struct bufferq {
 	int offset;
 };
 
-struct event_base *base;
-
 class ocssd_conn {
 public:
 	ocssd_conn(int connfd, const struct sockaddr_in &client);

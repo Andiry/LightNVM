@@ -60,6 +60,8 @@
  * of data we try to read per call to read(2). */
 #define BUFLEN 1024
 
+struct event_base *base;
+
 void interrupt(int signum) {
 	printf("%s\n", __func__);
 	event_base_loopbreak(base);
