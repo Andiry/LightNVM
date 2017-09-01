@@ -109,7 +109,7 @@ static int initialize_ocssd_manager()
 	/* Check for existing OCSSDs */
 	/* nvme2n1 used as pblk */
 
-	for (int i = 0; i < 2; i++) {
+	for (int i = 1; i < 2; i++) {
 		std::string path = "/dev/nvme" + std::to_string(i) + "n1";
 
 		if (!boost::filesystem::exists(path))
@@ -166,6 +166,7 @@ on_read(int fd, short ev, void *arg)
                 close(fd);
 		event_del(&client->ev_read);
 		free(buf);
+
 		delete client;
 		return;
 	}
@@ -222,6 +223,7 @@ on_write(int fd, short ev, void *arg)
         len = bufferq->len - bufferq->offset;
 	len = write(fd, bufferq->buf + bufferq->offset,
                     bufferq->len - bufferq->offset);
+
 	if (len == -1) {
 		if (errno == EINTR || errno == EAGAIN) {
 			/* The write was interrupted by a signal or we

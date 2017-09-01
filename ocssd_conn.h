@@ -49,7 +49,6 @@ public:
 			const struct sockaddr_in &client);
 	~ocssd_conn();
 
-	void close_conn(bool real_close = true);
 	int process_incoming_requests(int fd);
 
 	/* Events. We need 2 event structures, one for read event
@@ -114,13 +113,6 @@ ocssd_conn::~ocssd_conn()
 		nvm_dev_close(dev_);
 		for (auto &vblk : blks_array_)
 			nvm_vblk_free(vblk);
-	}
-}
-
-void ocssd_conn::close_conn(bool real_close)
-{
-	if (real_close && connfd_ != -1) {
-		connfd_ = -1;
 	}
 }
 
@@ -212,6 +204,37 @@ int ocssd_conn::publish_resource()
 	return ocssds.size();
 }
 
+static ssize_t nvm_vblk_test(const struct nvm_geo *geo, struct nvm_vblk *blk)
+{
+	size_t blk_size = nvm_vblk_get_nbytes(blk);
+	size_t req_size = 262144;
+	ssize_t ret = 0;
+	int count = blk_size / req_size;
+	void *buf;
+
+	ret = nvm_vblk_erase(blk);
+	if (ret)
+		return ret;
+
+	buf = nvm_buf_alloc(geo, req_size);
+	for (int i = 0; i < count; i++) {
+		ret = nvm_vblk_write(blk, buf, req_size);
+		if (ret < 0)
+			goto out;
+	}
+
+	for (int i = 0; i < count; i++) {
+		ret = nvm_vblk_read(blk, buf, req_size);
+		if (ret < 0)
+			goto out;
+	}
+
+	ret = 0;
+out:
+	free(buf);
+	return ret;
+}
+
 int ocssd_conn::initialize_vssd_blocks(const virtual_ocssd_unit * vunit)
 {
 	std::vector<uint32_t> curr_blocks;
@@ -257,6 +280,12 @@ int ocssd_conn::initialize_vssd_blocks(const virtual_ocssd_unit * vunit)
 		struct nvm_vblk *blk;
 
 		blk = nvm_vblk_alloc(dev_, addrs.data(), addrs.size());
+
+		if (nvm_vblk_test(geo_, blk) < 0) {
+			std::cout << "Test block " << count << " failed" << std::endl;
+			nvm_vblk_free(blk);
+			continue;
+		}
 
 		if (!blk) {
 			std::cout << __func__ << "FAILED: nvm_vblk_alloc" << std::endl;
@@ -352,9 +381,9 @@ int ocssd_conn::process_read_request(int fd)
 	uint32_t idx = request.get_block_index();
 	size_t count = request.get_count();
 	size_t offset = request.get_offset();
-	size_t ret = 0;
+	ssize_t ret = 0;
 
-	printf("%s: block %u, size %lu, offset%lu\n", __func__, idx, count, offset);
+//	printf("%s: block %u, size %lu, offset%lu\n", __func__, idx, count, offset);
 
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {
@@ -370,6 +399,13 @@ int ocssd_conn::process_read_request(int fd)
 
 	ret = nvm_vblk_pread(blk, bufferq->buf, count, offset);
 
+	if (ret < 0) {
+		printf("%s: read %ld, errno %d\n", __func__, ret, errno);
+		printf("%s: block %u, size %lu, offset %lu\n", __func__, idx, count, offset);
+		printf("pos write %lu\n", nvm_vblk_get_pos_write(blk));
+		nvm_vblk_pr(blk);
+	}
+
 	writeq.push_back(bufferq);
 
 	event_add(&ev_write, NULL);
@@ -383,9 +419,9 @@ int ocssd_conn::process_write_request(int fd)
 	uint32_t idx = request.get_block_index();
 	size_t count = request.get_count();
 	size_t received = 0;
-	size_t ret = 0;
+	ssize_t ret = 0;
 
-	printf("%s: block %u, size %lu\n", __func__, idx, count);
+//	printf("%s: block %u, size %lu\n", __func__, idx, count);
 
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {
@@ -420,9 +456,16 @@ int ocssd_conn::process_write_request(int fd)
 		}
 
 		received += len;
+//		printf("%s: received %lu\n", __func__, received);
 	}
 
 	ret = nvm_vblk_write(blk, bufferq->buf, received);
+	if (ret < 0) {
+		printf("%s: written %ld, errno %d\n", __func__, ret, errno);
+		printf("%s: block %u, size %lu\n", __func__, idx, count);
+		printf("pos write %lu\n", nvm_vblk_get_pos_write(blk));
+		nvm_vblk_pr(blk);
+	}
 
 	delete bufferq;
 	return 0;
@@ -433,7 +476,7 @@ int ocssd_conn::process_erase_request(int fd)
 	ocssd_io_request request(message_buf_);
 	uint32_t idx = request.get_block_index();
 
-	printf("%s: block %u\n", __func__, idx);
+	printf("Request block %u\n", idx);
 
 	struct nvm_vblk *blk = GetBlockPointer(idx);
 	if (!blk) {

@@ -207,8 +207,8 @@ public:
 		count_		= deserialize_data8(buffer);
 		offset_		= deserialize_data8(buffer);
 
-		printf("%d request: block %d, count %lu, offset %lu\n",
-			command_, block_index_, count_, offset_);
+//		printf("%d request: block %d, count %lu, offset %lu\n",
+//			command_, block_index_, count_, offset_);
 	}
 
 	size_t serialize(char *buffer) {
@@ -903,7 +903,6 @@ public:
 private:
 
 	int initialize_dev();
-	int channel_ok(size_t channel_id);
 	int assign_to_shared(ocssd_channel *channel);
 
 	size_t alloc_shared_channels(virtual_ocssd_unit *vunit,
@@ -922,40 +921,6 @@ private:
 	std::vector<ocssd_channel *> exclusive_channels_;
 };
 
-int ocssd_unit::channel_ok(size_t channel_id)
-{
-	std::vector<struct nvm_addr> addrs;
-	struct nvm_addr addr;
-	struct nvm_vblk *blk;
-	int size = 4096 * 16;
-	void *buf;
-	ssize_t res;
-	int ret;
-
-	addr.ppa = 0;
-	addr.g.ch = channel_id;
-	addr.g.lun = 0;
-	addr.g.blk = 0;
-
-	addrs.push_back(addr);
-
-	blk = nvm_vblk_alloc(dev_, addrs.data(), addrs.size());
-
-	buf = nvm_buf_alloc(geo_, size);
-	if (!buf) {
-		printf("nvm_buf_alloc failed\n");
-		return -ENOMEM;
-	}
-
-	res = nvm_vblk_pread(blk, buf, size, 0);
-
-	ret = res == size ? 1 : 0;
-
-	nvm_vblk_free(blk);
-	free(buf);
-	return ret;
-}
-
 int ocssd_unit::assign_to_shared(ocssd_channel *channel)
 {
 	if (shared_channels_.size() < 4)
@@ -971,20 +936,18 @@ int ocssd_unit::initialize_dev()
 		geo_->nchannels, geo_->nluns, geo_->nblocks);
 
 	for (size_t channel_id = 0; channel_id < geo_->nchannels; channel_id++) {
-		if (channel_ok(channel_id)) {
-			ocssd_channel *channel = new ocssd_channel(channel_id,
+		ocssd_channel *channel = new ocssd_channel(channel_id,
 							geo_->nluns,
 							geo_->nblocks);
 
-			if (assign_to_shared(channel)) {
-				channel->set_shared();
-				shared_channels_.push_back(channel);
-			} else {
-				exclusive_channels_.push_back(channel);
-			}
-
-			channel_count_++;
+		if (assign_to_shared(channel)) {
+			channel->set_shared();
+			shared_channels_.push_back(channel);
+		} else {
+			exclusive_channels_.push_back(channel);
 		}
+
+		channel_count_++;
 	}
 
 	std::cout << "Get " << channel_count_ << " channels for " << name_ << std::endl;
