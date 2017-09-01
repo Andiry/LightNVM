@@ -99,6 +99,37 @@ void generate_addr(std::vector<struct nvm_addr> &addrs,
 	addrs.push_back(addr);
 }
 
+ssize_t nvm_vblk_test(const struct nvm_geo *geo, struct nvm_vblk *blk)
+{
+	size_t blk_size = nvm_vblk_get_nbytes(blk);
+	size_t req_size = 262144;
+	ssize_t ret = 0;
+	int count = blk_size / req_size;
+	void *buf;
+
+	ret = nvm_vblk_erase(blk);
+	if (ret)
+		return ret;
+
+	buf = nvm_buf_alloc(geo, req_size);
+	for (int i = 0; i < count; i++) {
+		ret = nvm_vblk_write(blk, buf, req_size);
+		if (ret < 0)
+			goto out;
+	}
+
+	for (int i = 0; i < count; i++) {
+		ret = nvm_vblk_read(blk, buf, req_size);
+		if (ret < 0)
+			goto out;
+	}
+
+	ret = 0;
+out:
+	free(buf);
+	return ret;
+}
+
 class MutexLock {
 public:
 	explicit MutexLock(std::mutex *mutex)
