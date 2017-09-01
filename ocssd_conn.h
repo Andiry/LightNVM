@@ -13,7 +13,6 @@
 #include "azure_config.h"
 #include "ocssd_server.h"
 
-#define MESSAGE_BUFFER_SIZE 24
 #define VSSD_BUFFER_SIZE 1024
 #define DATA_BUFFER_SIZE (16 * 1024 * 1024)
 

@@ -16,6 +16,8 @@
 #define OCSSD_MESSAGE_PORT	50001
 #define OCSSD_DATA_PORT		50002
 
+#define MESSAGE_BUFFER_SIZE 24
+
 static int setnonblocking(int fd)
 {
 	int old_option = fcntl(fd, F_GETFL);
